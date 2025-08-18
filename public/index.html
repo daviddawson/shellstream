@@ -444,9 +444,16 @@
         .tab-content[id^="terminal-"] {
             background: #2a2a2a !important;  /* Gray background to show terminal bounds */
             padding: 20px;  /* Add padding instead of margin for cleaner look */
-            overflow-x: auto;  /* Allow horizontal scrolling for wide terminals */
-            overflow-y: visible;  /* Let xterm handle vertical scrolling */
-            -webkit-overflow-scrolling: touch;  /* Smooth scrolling on iOS */
+            position: relative;
+        }
+        
+        /* Touch-scrollable wrapper for terminal */
+        .terminal-scroll-wrapper {
+            overflow: auto;
+            -webkit-overflow-scrolling: touch;
+            width: 100%;
+            height: 100%;
+            position: relative;
         }
         
         /* Ensure xterm-screen can expand to full width */
@@ -455,10 +462,9 @@
             background: #000;
         }
         
-        /* Make viewport scrollable for vertical scrolling */
+        /* xterm viewport - let wrapper handle scrolling */
         .xterm-viewport {
-            overflow-y: auto !important;
-            overflow-x: hidden !important;
+            overflow: hidden !important;
             background: #000;
         }
         
@@ -793,8 +799,7 @@
             }
             
             .xterm-viewport {
-                overflow-y: auto !important;
-                overflow-x: hidden !important;
+                overflow: hidden !important;
                 width: auto !important;
             }
             
@@ -845,6 +850,14 @@
             /* Remove terminal container padding on mobile for maximum space */
             .tab-content[id^="terminal-"] {
                 padding: 0 !important;
+                height: 100vh;
+                display: flex;
+                flex-direction: column;
+            }
+            
+            .terminal-scroll-wrapper {
+                flex: 1;
+                min-height: 0;
             }
             
             /* Make terminal size indicator smaller on mobile */
@@ -1362,11 +1375,13 @@
                     </div>
                 </div>
                 
-                <div class="terminal-container" style="flex: 1; min-height: 0;">
+                <div class="terminal-container" style="flex: 1; min-height: 0; overflow: hidden;">
                     <div class="terminal-size-indicator" id="size-${session.id}">
                         ${session.cols || 80}×${session.rows || 24}
                     </div>
-                    <div id="terminal-${session.id}" style="width: max-content; min-width: 100%;"></div>
+                    <div class="terminal-scroll-wrapper">
+                        <div id="terminal-${session.id}" style="width: max-content; min-width: 100%;"></div>
+                    </div>
                 </div>
             `;
             
@@ -1478,13 +1493,64 @@
             
             term.open(terminalContainer);
             
-            // Force enable scrolling after terminal opens
+            // Setup touch scrolling on the wrapper
             setTimeout(() => {
-                // Ensure viewport scrolling is enabled
+                const wrapper = terminalContainer.closest('.terminal-scroll-wrapper');
                 const viewport = terminalContainer.querySelector('.xterm-viewport');
-                if (viewport) {
-                    viewport.style.overflowY = 'scroll';
-                    viewport.style.webkitOverflowScrolling = 'touch'; // For iOS smooth scrolling
+                const screen = terminalContainer.querySelector('.xterm-screen');
+                
+                if (wrapper && viewport && screen) {
+                    // Make wrapper scrollable
+                    wrapper.style.overflow = 'auto';
+                    wrapper.style.webkitOverflowScrolling = 'touch';
+                    
+                    // Set wrapper dimensions to create scrollable area
+                    const updateScrollArea = () => {
+                        // Get terminal's actual rendered size
+                        const terminalRect = terminalContainer.getBoundingClientRect();
+                        const screenRect = screen.getBoundingClientRect();
+                        
+                        // Set wrapper height to container height
+                        wrapper.style.height = `${terminalRect.height}px`;
+                        
+                        // Enable both horizontal and vertical scrolling
+                        if (screenRect.width > wrapper.clientWidth) {
+                            wrapper.style.overflowX = 'auto';
+                        }
+                        if (viewport.scrollHeight > wrapper.clientHeight) {
+                            wrapper.style.overflowY = 'auto';
+                        }
+                    };
+                    
+                    updateScrollArea();
+                    
+                    // Update on resize
+                    window.addEventListener('resize', updateScrollArea);
+                    
+                    // Prevent xterm from intercepting touch events
+                    if ('ontouchstart' in window) {
+                        let touchStartX = 0;
+                        let touchStartY = 0;
+                        let scrollStartX = 0;
+                        let scrollStartY = 0;
+                        
+                        wrapper.addEventListener('touchstart', (e) => {
+                            touchStartX = e.touches[0].clientX;
+                            touchStartY = e.touches[0].clientY;
+                            scrollStartX = wrapper.scrollLeft;
+                            scrollStartY = wrapper.scrollTop;
+                        }, { passive: true });
+                        
+                        wrapper.addEventListener('touchmove', (e) => {
+                            const touchX = e.touches[0].clientX;
+                            const touchY = e.touches[0].clientY;
+                            const deltaX = touchStartX - touchX;
+                            const deltaY = touchStartY - touchY;
+                            
+                            wrapper.scrollLeft = scrollStartX + deltaX;
+                            wrapper.scrollTop = scrollStartY + deltaY;
+                        }, { passive: true });
+                    }
                 }
             }, 100);
             
