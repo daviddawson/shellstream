@@ -1,6 +1,6 @@
 {
   "name": "@daviddawson/shellstream",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Stream any terminal session to the web",
   "main": "shellstream.js",
   "bin": {
