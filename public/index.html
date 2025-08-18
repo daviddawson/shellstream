@@ -444,6 +444,9 @@
         .tab-content[id^="terminal-"] {
             background: #2a2a2a !important;  /* Gray background to show terminal bounds */
             padding: 20px;  /* Add padding instead of margin for cleaner look */
+            overflow-x: auto;  /* Allow horizontal scrolling for wide terminals */
+            overflow-y: visible;  /* Let xterm handle vertical scrolling */
+            -webkit-overflow-scrolling: touch;  /* Smooth scrolling on iOS */
         }
         
         /* Ensure xterm-screen can expand to full width */
@@ -452,9 +455,10 @@
             background: #000;
         }
         
-        /* Make viewport scrollable but not constrained */
+        /* Make viewport scrollable for vertical scrolling */
         .xterm-viewport {
-            overflow: visible !important;
+            overflow-y: auto !important;
+            overflow-x: hidden !important;
             background: #000;
         }
         
@@ -789,7 +793,8 @@
             }
             
             .xterm-viewport {
-                overflow: visible !important;
+                overflow-y: auto !important;
+                overflow-x: hidden !important;
                 width: auto !important;
             }
             
@@ -1463,13 +1468,25 @@
                 fontSize: 13,
                 lineHeight: 1.2,
                 cursorBlink: true,
-                scrollback: 10000
+                scrollback: 10000,
+                scrollOnUserInput: true,
+                scrollSensitivity: 3
             });
             
             const webLinksAddon = new WebLinksAddon.WebLinksAddon();
             term.loadAddon(webLinksAddon);
             
             term.open(terminalContainer);
+            
+            // Force enable scrolling after terminal opens
+            setTimeout(() => {
+                // Ensure viewport scrolling is enabled
+                const viewport = terminalContainer.querySelector('.xterm-viewport');
+                if (viewport) {
+                    viewport.style.overflowY = 'scroll';
+                    viewport.style.webkitOverflowScrolling = 'touch'; // For iOS smooth scrolling
+                }
+            }, 100);
             
             // Don't fit - use exact dimensions from remote terminal
             console.log(`Terminal opened with ${term.cols}×${term.rows} (matching remote)`);
