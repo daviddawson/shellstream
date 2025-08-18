@@ -419,7 +419,33 @@ class ShellstreamServer {
   }
 
   setupFileBrowserRoutes() {
-    // Get directory tree for a session
+    // Get directory tree for a path (no session required)
+    this.app.get('/api/files', async (req, res) => {
+      const directoryPath = req.query.path;
+      if (!directoryPath) {
+        return res.status(400).json({ error: 'Directory path required' });
+      }
+      
+      const tree = await this.fileBrowser.getDirectoryTree(
+        directoryPath,
+        req.query.depth || 3
+      );
+      
+      res.json(tree);
+    });
+    
+    // Get file content (no session required)
+    this.app.get('/api/file', async (req, res) => {
+      const filePath = req.query.path;
+      if (!filePath) {
+        return res.status(400).json({ error: 'File path required' });
+      }
+      
+      const content = await this.fileBrowser.getFileContent(filePath);
+      res.json(content);
+    });
+    
+    // Legacy session-based routes for backward compatibility
     this.app.get('/api/session/:id/files', async (req, res) => {
       const session = this.sessions.get(req.params.id);
       if (!session) {
@@ -434,7 +460,6 @@ class ShellstreamServer {
       res.json(tree);
     });
     
-    // Get file content
     this.app.get('/api/session/:id/file', async (req, res) => {
       const session = this.sessions.get(req.params.id);
       if (!session) {
@@ -456,7 +481,32 @@ class ShellstreamServer {
       res.json(content);
     });
     
-    // Get git status
+    // Get git status (no session required)
+    this.app.get('/api/git-status', async (req, res) => {
+      const directoryPath = req.query.path;
+      if (!directoryPath) {
+        return res.status(400).json({ error: 'Directory path required' });
+      }
+      
+      const status = await this.fileBrowser.getGitStatus(directoryPath);
+      res.json(status);
+    });
+    
+    // Get recently modified files (no session required)
+    this.app.get('/api/recent-files', async (req, res) => {
+      const directoryPath = req.query.path;
+      if (!directoryPath) {
+        return res.status(400).json({ error: 'Directory path required' });
+      }
+      
+      const recent = await this.fileBrowser.getRecentlyModified(
+        directoryPath,
+        req.query.limit || 10
+      );
+      res.json(recent);
+    });
+    
+    // Legacy session-based routes
     this.app.get('/api/session/:id/git-status', async (req, res) => {
       const session = this.sessions.get(req.params.id);
       if (!session) {
@@ -467,7 +517,6 @@ class ShellstreamServer {
       res.json(status);
     });
     
-    // Get recently modified files
     this.app.get('/api/session/:id/recent-files', async (req, res) => {
       const session = this.sessions.get(req.params.id);
       if (!session) {

@@ -412,7 +412,7 @@
             flex: 1;
             background: #000;
             padding: 0;
-            overflow: hidden;
+            overflow: auto;  /* Changed from hidden to auto to allow scrolling */
             display: flex;
             flex-direction: column;
         }
@@ -487,6 +487,17 @@
         .tab-content.active {
             display: flex;
             flex-direction: column;
+        }
+        
+        .file-tab-content {
+            display: none;
+            flex: 1;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        
+        .file-tab-content.active {
+            display: flex;
         }
         
         .file-tree {
@@ -711,6 +722,27 @@
             
             .terminal-container {
                 padding: 0;
+                overflow-x: auto !important;
+                overflow-y: auto !important;
+            }
+            
+            /* Allow xterm to maintain its natural width on mobile */
+            .xterm {
+                min-width: 100%;
+            }
+            
+            .xterm-screen {
+                width: max-content !important;
+            }
+            
+            .xterm-viewport {
+                overflow-x: visible !important;
+                width: auto !important;
+            }
+            
+            /* Ensure terminal content isn't clipped */
+            .tab-content.active {
+                overflow-x: auto;
             }
             
             .content-tabs {
@@ -745,6 +777,41 @@
             .remote-controls button {
                 flex: 1 1 auto;
                 min-width: 80px;
+            }
+            
+            /* File browser responsive behavior */
+            #filesFileTab {
+                flex-direction: column !important;
+            }
+            
+            .file-tree-container {
+                width: 100% !important;
+                border-right: none !important;
+                border-bottom: 1px solid #333;
+            }
+            
+            .file-viewer-container {
+                width: 100% !important;
+                display: none;
+            }
+            
+            .file-viewer-container.active {
+                display: block;
+            }
+            
+            .file-tree-container.hidden {
+                display: none;
+            }
+            
+            .mobile-back-btn {
+                display: inline-block !important;
+                background: #333;
+                color: #fff;
+                border: 1px solid #444;
+                padding: 6px 12px;
+                margin-right: 10px;
+                border-radius: 4px;
+                cursor: pointer;
             }
         }
         
@@ -788,22 +855,23 @@
                 </div>
                 
                 <div class="tabs" style="background: #252525; border-bottom: 1px solid #333;">
-                    <button class="tab active" onclick="switchFileTab('tree', this)">Files</button>
-                    <button class="tab" onclick="switchFileTab('viewer', this)">View</button>
+                    <button class="tab active" onclick="switchFileTab('files', this)">Files</button>
                     <button class="tab" onclick="switchFileTab('git', this)">Git</button>
                 </div>
                 
-                <div class="file-tab-content active" id="treeTab" style="flex: 1; overflow: auto;">
-                    <div class="file-tree" id="fileTree"></div>
-                </div>
-                
-                <div class="file-tab-content" id="viewerFileTab" style="flex: 1; overflow: auto;">
-                    <div class="file-viewer">
-                        <div class="file-viewer-header" id="fileViewerHeader">
-                            Select a file to view
-                        </div>
-                        <div class="file-viewer-content" id="fileViewerContent">
-                            <pre><code></code></pre>
+                <div class="file-tab-content active" id="filesFileTab" style="flex: 1; overflow: auto; display: flex; flex-direction: row;">
+                    <div class="file-tree-container" id="fileTreeContainer" style="width: 40%; border-right: 1px solid #333; overflow-y: auto;">
+                        <div class="file-tree" id="fileTree"></div>
+                    </div>
+                    <div class="file-viewer-container" id="fileViewerContainer" style="flex: 1; overflow: auto;">
+                        <div class="file-viewer">
+                            <div class="file-viewer-header" id="fileViewerHeader">
+                                <button class="mobile-back-btn" onclick="showFileTree()" style="display: none;">← Back</button>
+                                <span id="fileViewerTitle">Select a file to view</span>
+                            </div>
+                            <div class="file-viewer-content" id="fileViewerContent">
+                                <pre><code></code></pre>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -838,6 +906,13 @@
         let selectedFile = null;
         let currentTerminal = null;
         let fitAddon = null;
+        
+        // Helper function to escape HTML
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
         
         // Mobile menu toggle
         const menuToggle = document.getElementById('menuToggle');
@@ -1123,9 +1198,9 @@
             // Default to Files tab
             switchContentTab('filesTab', filesTab);
             
-            // If there are active sessions, load the file tree for the first one
+            // If there are active sessions, load the file tree for the directory
             if (activeSessions.length > 0) {
-                loadFileTree(activeSessions[0].id);
+                loadFileTree(currentDirectory);
             }
         }
         
@@ -1183,8 +1258,8 @@
                     </div>
                 </div>
                 
-                <div class="terminal-container" style="flex: 1;">
-                    <div id="terminal-${session.id}" style="flex: 1;"></div>
+                <div class="terminal-container" style="flex: 1; overflow-x: auto;">
+                    <div id="terminal-${session.id}" style="width: max-content; min-width: 100%;"></div>
                 </div>
             `;
             
@@ -1223,9 +1298,9 @@
                 }
             }
             
-            // If switching to files tab, load files for current session
-            if (tabId === 'filesTab' && currentSessionId) {
-                loadFileTree(currentSessionId);
+            // If switching to files tab, load files for current directory
+            if (tabId === 'filesTab' && currentDirectory) {
+                loadFileTree(currentDirectory);
             }
         }
         
@@ -1240,10 +1315,16 @@
             document.querySelectorAll('.file-tab-content').forEach(content => {
                 content.classList.remove('active');
             });
-            document.getElementById(tabName + 'Tab').classList.add('active');
             
-            if (tabName === 'git' && currentSessionId) {
-                loadGitStatus(currentSessionId);
+            // Handle the tab IDs
+            const tabId = tabName + 'FileTab';
+            const tabContent = document.getElementById(tabId);
+            if (tabContent) {
+                tabContent.classList.add('active');
+            }
+            
+            if (tabName === 'git' && currentDirectory) {
+                loadGitStatus(currentDirectory);
             }
         }
         
@@ -1261,15 +1342,15 @@
             
             // Get the session to match its exact dimensions
             const session = sessions.get(sessionId);
-            const termCols = session ? session.cols : 80;
-            const termRows = session ? session.rows : 24;
+            const termCols = (session && session.cols) ? session.cols : 80;
+            const termRows = (session && session.rows) ? session.rows : 24;
             
             console.log(`Creating terminal with exact remote dimensions: ${termCols}×${termRows}`);
             
             // Create terminal with EXACT same dimensions as remote
             const term = new Terminal({
-                cols: termCols,
-                rows: termRows,
+                cols: termCols || 80,
+                rows: termRows || 24,
                 theme: {
                     background: '#0a0a0a',
                     foreground: '#e0e0e0',
@@ -1292,8 +1373,82 @@
             console.log(`Terminal opened with ${term.cols}×${term.rows} (matching remote)`);
             
             // Handle terminal input - send directly to server
+            // Track composition state for mobile keyboards
+            let isComposing = false;
+            let inputBuffer = '';
+            let lastSentData = '';
+            let lastSentTime = 0;
+            
+            // Add composition event listeners to the terminal element
+            const termElement = terminalContainer.querySelector('.xterm');
+            if (termElement && window.innerWidth <= 768) {
+                termElement.addEventListener('compositionstart', () => {
+                    isComposing = true;
+                    console.log('Composition started');
+                });
+                
+                termElement.addEventListener('compositionend', () => {
+                    isComposing = false;
+                    inputBuffer = '';
+                    console.log('Composition ended');
+                });
+            }
+            
+            // Detect Firefox mobile
+            const isFirefoxMobile = /Firefox/.test(navigator.userAgent) && /Mobile/.test(navigator.userAgent);
+            
+            // Track input state for Firefox mobile workaround
+            let recentInputs = [];
+            let lastInputTime = 0;
+            
             term.onData((data) => {
                 if (sessionId === currentSessionId && ws && ws.readyState === WebSocket.OPEN) {
+                    const now = Date.now();
+                    
+                    // Special handling for Firefox mobile
+                    if (isFirefoxMobile && window.innerWidth <= 768) {
+                        console.log('Firefox mobile input:', JSON.stringify(data), 'Code:', data.charCodeAt(0));
+                        
+                        // Track recent inputs
+                        recentInputs.push({data: data, time: now});
+                        // Keep only last 10 inputs
+                        if (recentInputs.length > 10) {
+                            recentInputs.shift();
+                        }
+                        
+                        // If this is a space
+                        if (data === ' ') {
+                            // Check if we have recent duplicate pattern
+                            if (recentInputs.length >= 3) {
+                                const recent = recentInputs.slice(-3);
+                                // Check for pattern: [word chars] [same word chars] [space]
+                                if (recent[0].data === recent[1].data && recent[2].data === ' ') {
+                                    console.log('Firefox duplicate pattern detected, ignoring duplicate');
+                                    // Clear the duplicate from terminal display
+                                    // Send backspaces to remove the duplicate
+                                    const duplicateLength = recent[1].data.length;
+                                    for (let i = 0; i < duplicateLength; i++) {
+                                        term.write('\b \b');  // Backspace, space, backspace to clear character
+                                    }
+                                    // Clear recent inputs to avoid further issues
+                                    recentInputs = [];
+                                }
+                            }
+                        }
+                        
+                        // Also check timing - if same data within 20ms, likely a duplicate
+                        if (now - lastInputTime < 20 && recentInputs.length >= 2) {
+                            const prev = recentInputs[recentInputs.length - 2];
+                            if (prev && prev.data === data) {
+                                console.log('Firefox timing duplicate detected, blocking');
+                                recentInputs.pop(); // Remove the duplicate
+                                return;
+                            }
+                        }
+                        
+                        lastInputTime = now;
+                    }
+                    
                     ws.send(JSON.stringify({
                         type: 'input',
                         sessionId: sessionId,
@@ -1337,9 +1492,10 @@
             }
         }
         
-        async function loadFileTree(sessionId) {
+        async function loadFileTree(directoryPath) {
             try {
-                const response = await fetch(`/api/session/${sessionId}/files?depth=3`);
+                // Use the directory path directly instead of session ID
+                const response = await fetch(`/api/files?path=${encodeURIComponent(directoryPath || currentDirectory)}&depth=3`);
                 const tree = await response.json();
                 fileTree = tree;
                 renderFileTree(tree, document.getElementById('fileTree'));
@@ -1393,7 +1549,8 @@
         
         async function viewFile(filePath) {
             try {
-                const response = await fetch(`/api/session/${currentSessionId}/file?path=${encodeURIComponent(filePath)}`);
+                // Use absolute path directly instead of session-based API
+                const response = await fetch(`/api/file?path=${encodeURIComponent(filePath)}`);
                 const data = await response.json();
                 
                 if (data.error) {
@@ -1401,17 +1558,25 @@
                         `<pre style="color: #f44336;">Error: ${data.error}</pre>`;
                 } else {
                     const filename = filePath.split('/').pop();
-                    document.getElementById('fileViewerHeader').textContent = filename;
+                    document.getElementById('fileViewerTitle').textContent = filename;
                     
-                    const code = document.getElementById('fileViewerContent').querySelector('code');
-                    code.textContent = data.content;
-                    code.className = `language-${data.language}`;
+                    // On mobile, show viewer and hide tree
+                    if (window.innerWidth <= 768) {
+                        document.getElementById('fileTreeContainer').classList.add('hidden');
+                        document.getElementById('fileViewerContainer').classList.add('active');
+                    }
+                    
+                    // Update the content with proper code element
+                    const contentDiv = document.getElementById('fileViewerContent');
+                    contentDiv.innerHTML = `<pre><code class="language-${data.language || 'plaintext'}">${escapeHtml(data.content)}</code></pre>`;
                     
                     // Highlight code
-                    Prism.highlightElement(code);
+                    const code = contentDiv.querySelector('code');
+                    if (code) {
+                        Prism.highlightElement(code);
+                    }
                     
-                    // Switch to viewer tab
-                    switchTab('viewer', document.querySelector('.tab:nth-child(2)'));
+                    // No need to switch tabs - viewer is always visible in Files tab
                 }
             } catch (err) {
                 console.error('Error loading file:', err);
@@ -1420,9 +1585,9 @@
             }
         }
         
-        async function loadGitStatus(sessionId) {
+        async function loadGitStatus(directoryPath) {
             try {
-                const response = await fetch(`/api/session/${sessionId}/git-status`);
+                const response = await fetch(`/api/git-status?path=${encodeURIComponent(directoryPath || currentDirectory)}`);
                 const data = await response.json();
                 
                 const container = document.getElementById('gitStatus');
@@ -1492,9 +1657,9 @@
                 toggle.textContent = 'Files ◄';
                 
                 // Load files if not loaded
-                if (currentSessionId && !fileTree) {
-                    loadFileTree(currentSessionId);
-                    loadGitStatus(currentSessionId);
+                if (currentDirectory && !fileTree) {
+                    loadFileTree(currentDirectory);
+                    loadGitStatus(currentDirectory);
                 }
             } else {
                 panel.classList.add('collapsed');
@@ -1503,9 +1668,18 @@
         }
         
         function refreshFiles() {
-            if (currentSessionId) {
-                loadFileTree(currentSessionId);
-                loadGitStatus(currentSessionId);
+            if (currentDirectory) {
+                loadFileTree(currentDirectory);
+                loadGitStatus(currentDirectory);
+            }
+        }
+        
+        function showFileTree() {
+            // Mobile only - go back to file tree view
+            if (window.innerWidth <= 768) {
+                document.getElementById('fileTreeContainer').classList.remove('hidden');
+                document.getElementById('fileViewerContainer').classList.remove('active');
+                document.getElementById('fileViewerTitle').textContent = 'Select a file to view';
             }
         }
         
