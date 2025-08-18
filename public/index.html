@@ -454,6 +454,8 @@
             width: 100%;
             height: 100%;
             position: relative;
+            /* Prevent xterm from blocking touch events */
+            touch-action: pan-x pan-y;
         }
         
         /* Ensure xterm-screen can expand to full width */
@@ -462,9 +464,8 @@
             background: #000;
         }
         
-        /* xterm viewport - let wrapper handle scrolling */
+        /* xterm viewport - allow scrolling */
         .xterm-viewport {
-            overflow: hidden !important;
             background: #000;
         }
         
@@ -799,7 +800,6 @@
             }
             
             .xterm-viewport {
-                overflow: hidden !important;
                 width: auto !important;
             }
             
@@ -1493,63 +1493,23 @@
             
             term.open(terminalContainer);
             
-            // Setup touch scrolling on the wrapper
+            // Setup scrolling - let's use the xterm viewport itself
             setTimeout(() => {
-                const wrapper = terminalContainer.closest('.terminal-scroll-wrapper');
                 const viewport = terminalContainer.querySelector('.xterm-viewport');
-                const screen = terminalContainer.querySelector('.xterm-screen');
+                const wrapper = terminalContainer.parentElement;
                 
-                if (wrapper && viewport && screen) {
-                    // Make wrapper scrollable
-                    wrapper.style.overflow = 'auto';
-                    wrapper.style.webkitOverflowScrolling = 'touch';
+                if (viewport) {
+                    // Enable scrolling on the viewport
+                    viewport.style.overflow = 'scroll';
+                    viewport.style.overflowX = 'auto';
+                    viewport.style.overflowY = 'auto';
+                    viewport.style.webkitOverflowScrolling = 'touch';
+                    viewport.style.touchAction = 'pan-x pan-y';
                     
-                    // Set wrapper dimensions to create scrollable area
-                    const updateScrollArea = () => {
-                        // Get terminal's actual rendered size
-                        const terminalRect = terminalContainer.getBoundingClientRect();
-                        const screenRect = screen.getBoundingClientRect();
-                        
-                        // Set wrapper height to container height
-                        wrapper.style.height = `${terminalRect.height}px`;
-                        
-                        // Enable both horizontal and vertical scrolling
-                        if (screenRect.width > wrapper.clientWidth) {
-                            wrapper.style.overflowX = 'auto';
-                        }
-                        if (viewport.scrollHeight > wrapper.clientHeight) {
-                            wrapper.style.overflowY = 'auto';
-                        }
-                    };
-                    
-                    updateScrollArea();
-                    
-                    // Update on resize
-                    window.addEventListener('resize', updateScrollArea);
-                    
-                    // Prevent xterm from intercepting touch events
-                    if ('ontouchstart' in window) {
-                        let touchStartX = 0;
-                        let touchStartY = 0;
-                        let scrollStartX = 0;
-                        let scrollStartY = 0;
-                        
-                        wrapper.addEventListener('touchstart', (e) => {
-                            touchStartX = e.touches[0].clientX;
-                            touchStartY = e.touches[0].clientY;
-                            scrollStartX = wrapper.scrollLeft;
-                            scrollStartY = wrapper.scrollTop;
-                        }, { passive: true });
-                        
-                        wrapper.addEventListener('touchmove', (e) => {
-                            const touchX = e.touches[0].clientX;
-                            const touchY = e.touches[0].clientY;
-                            const deltaX = touchStartX - touchX;
-                            const deltaY = touchStartY - touchY;
-                            
-                            wrapper.scrollLeft = scrollStartX + deltaX;
-                            wrapper.scrollTop = scrollStartY + deltaY;
-                        }, { passive: true });
+                    // Also make the wrapper scrollable for horizontal
+                    if (wrapper) {
+                        wrapper.style.overflow = 'auto';
+                        wrapper.style.webkitOverflowScrolling = 'touch';
                     }
                 }
             }, 100);
