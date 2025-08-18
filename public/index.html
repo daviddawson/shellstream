@@ -1,0 +1,1541 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Shellstream - Terminal Streaming</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: #0a0a0a;
+            color: #e0e0e0;
+            height: 100vh;
+            overflow: hidden;
+        }
+        
+        .container {
+            display: flex;
+            width: 100%;
+            height: 100vh;
+        }
+        
+        .sidebar {
+            width: 300px;
+            min-width: 300px;
+            max-width: 300px;
+            background: #1a1a1a;
+            border-right: 1px solid #333;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            flex-shrink: 0;
+            height: 100%;
+        }
+        
+        
+        .sidebar-header {
+            padding: 20px;
+            background: #252525;
+            border-bottom: 1px solid #333;
+        }
+        
+        .sidebar-header h1 {
+            font-size: 18px;
+            font-weight: 600;
+            color: #fff;
+            margin-bottom: 10px;
+        }
+        
+        .connection-status {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 12px;
+            color: #888;
+        }
+        
+        .status-indicator {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #666;
+        }
+        
+        .status-indicator.connected {
+            background: #4caf50;
+            animation: pulse 2s ease-in-out infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        
+        .sidebar-header {
+            padding: 20px;
+            background: #252525;
+            border-bottom: 1px solid #333;
+        }
+        
+        .sidebar-header h1 {
+            font-size: 18px;
+            font-weight: 600;
+            color: #fff;
+            margin-bottom: 10px;
+        }
+        
+        .connection-status {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 12px;
+            color: #888;
+        }
+        
+        .status-indicator {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #666;
+        }
+        
+        .status-indicator.connected {
+            background: #4caf50;
+            animation: pulse 2s ease-in-out infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        
+        .sessions-list {
+            flex: 1;
+            overflow-y: auto;
+            padding: 10px;
+        }
+        
+        .session-item {
+            background: #252525;
+            border: 1px solid #333;
+            border-radius: 6px;
+            padding: 12px;
+            margin-bottom: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .session-item:hover {
+            background: #2a2a2a;
+            border-color: #444;
+        }
+        
+        .session-item.active {
+            background: #2a3f5f;
+            border-color: #4a6fa5;
+        }
+        
+        .session-name {
+            font-weight: 500;
+            color: #fff;
+            margin-bottom: 4px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .session-command {
+            font-family: 'Monaco', 'Menlo', monospace;
+            font-size: 11px;
+            color: #4a9eff;
+            background: #1a1a1a;
+            padding: 2px 6px;
+            border-radius: 3px;
+            display: inline-block;
+            margin-top: 4px;
+        }
+        
+        .session-info {
+            font-size: 11px;
+            color: #888;
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+        
+        .session-dimensions {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            font-family: monospace;
+            font-size: 10px;
+            color: #666;
+            background: #1a1a1a;
+            padding: 2px 4px;
+            border-radius: 2px;
+        }
+        
+        .session-status {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            margin-top: 6px;
+        }
+        
+        .session-badge {
+            display: inline-block;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 10px;
+            font-weight: 500;
+            text-transform: uppercase;
+        }
+        
+        .badge-active {
+            background: #1e3a1e;
+            color: #4caf50;
+        }
+        
+        .badge-disconnected {
+            background: #3a1e1e;
+            color: #f44336;
+        }
+        
+        .badge-prompt {
+            background: #3a351e;
+            color: #ff9800;
+            animation: blink 1s ease-in-out infinite;
+        }
+        
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.3; }
+        }
+        
+        .sessions-list {
+            flex: 1;
+            overflow-y: auto;
+            padding: 15px;
+        }
+        
+        .session-group {
+            margin-bottom: 20px;
+        }
+        
+        .session-group-header {
+            font-size: 12px;
+            color: #888;
+            font-weight: 500;
+            margin-bottom: 8px;
+            padding-left: 5px;
+        }
+        
+        .directory-item {
+            background: #252525;
+            border: 1px solid #333;
+            border-radius: 6px;
+            padding: 12px;
+            margin-bottom: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .directory-item:hover {
+            background: #2a2a2a;
+            border-color: #444;
+        }
+        
+        .directory-item.active {
+            background: #2a3f5f;
+            border-color: #4a6fa5;
+        }
+        
+        .directory-name {
+            font-weight: 500;
+            font-size: 14px;
+            margin-bottom: 4px;
+            color: #fff;
+        }
+        
+        .session-count {
+            font-size: 11px;
+            color: #888;
+        }
+        
+        .main-content {
+            flex: 1;
+            min-width: 0;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            background: #0a0a0a;
+            height: 100%;
+        }
+        
+        .content-tabs {
+            background: #252525;
+            border-bottom: 1px solid #333;
+            display: flex;
+            overflow-x: auto;
+        }
+        
+        .content-tab {
+            padding: 10px 16px;
+            background: none;
+            border: none;
+            color: #888;
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+            transition: all 0.2s;
+            white-space: nowrap;
+            min-width: 100px;
+        }
+        
+        .content-tab:hover {
+            background: #2a2a2a;
+            color: #ccc;
+        }
+        
+        .content-tab.active {
+            color: #4a9eff;
+            border-bottom-color: #4a9eff;
+        }
+        
+        .tab-content {
+            flex: 1;
+            display: none;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        
+        .tab-content.active {
+            display: flex;
+        }
+        
+        .terminal-panel {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            min-width: 400px;
+        }
+        
+        .session-header {
+            background: #1a1a1a;
+            border-bottom: 1px solid #333;
+            padding: 12px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .session-title {
+            font-size: 14px;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .terminal-size {
+            font-family: monospace;
+            font-size: 12px;
+            color: #666;
+            background: #0a0a0a;
+            padding: 2px 8px;
+            border-radius: 3px;
+        }
+        
+        .header-actions {
+            display: flex;
+            gap: 10px;
+        }
+        
+        .btn {
+            padding: 6px 12px;
+            border-radius: 4px;
+            border: 1px solid #333;
+            background: #252525;
+            color: #fff;
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .btn:hover {
+            background: #2a2a2a;
+            border-color: #444;
+        }
+        
+        .btn-primary {
+            background: #1976d2;
+            border-color: #1976d2;
+        }
+        
+        .btn-primary:hover {
+            background: #1565c0;
+        }
+        
+        .btn-success {
+            background: #4caf50;
+            border-color: #4caf50;
+        }
+        
+        .btn-success:hover {
+            background: #45a049;
+        }
+        
+        .btn-danger {
+            background: #f44336;
+            border-color: #f44336;
+        }
+        
+        .btn-danger:hover {
+            background: #da190b;
+        }
+        
+        .content-area {
+            flex: 1;
+            display: flex;
+            overflow: hidden;
+            background: #000;
+        }
+        
+        .terminal-container {
+            flex: 1;
+            background: #000;
+            padding: 0;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        #terminal {
+            flex: 1;
+            padding: 10px;
+        }
+        
+        
+        .file-panel {
+            width: 350px;
+            background: #151515;
+            border-left: 1px solid #333;
+            display: flex;
+            flex-direction: column;
+            transition: transform 0.3s;
+        }
+        
+        .file-panel.collapsed {
+            display: none;
+        }
+        
+        .file-header {
+            background: #1a1a1a;
+            border-bottom: 1px solid #333;
+            padding: 12px 15px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .file-title {
+            font-size: 14px;
+            font-weight: 600;
+        }
+        
+        .tabs {
+            display: flex;
+            background: #1a1a1a;
+            border-bottom: 1px solid #333;
+        }
+        
+        .tab {
+            flex: 1;
+            padding: 8px;
+            background: transparent;
+            border: none;
+            border-bottom: 2px solid transparent;
+            color: #888;
+            cursor: pointer;
+            font-size: 13px;
+            transition: all 0.2s;
+        }
+        
+        .tab:hover {
+            color: #fff;
+            background: #252525;
+        }
+        
+        .tab.active {
+            color: #fff;
+            border-bottom-color: #4a6fa5;
+        }
+        
+        .tab-content {
+            flex: 1;
+            overflow: hidden;
+            display: none;
+        }
+        
+        .tab-content.active {
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .file-tree {
+            flex: 1;
+            overflow-y: auto;
+            padding: 10px;
+        }
+        
+        .tree-item {
+            display: flex;
+            align-items: center;
+            padding: 4px 8px;
+            cursor: pointer;
+            border-radius: 4px;
+            font-size: 13px;
+            user-select: none;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        
+        .tree-item:hover {
+            background: #252525;
+        }
+        
+        .tree-item.selected {
+            background: #2a3f5f;
+        }
+        
+        .tree-icon {
+            width: 16px;
+            margin-right: 6px;
+            flex-shrink: 0;
+        }
+        
+        .tree-children {
+            margin-left: 20px;
+        }
+        
+        .file-viewer {
+            flex: 1;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .file-viewer-header {
+            background: #1e1e1e;
+            padding: 10px 15px;
+            border-bottom: 1px solid #333;
+            font-size: 12px;
+            color: #888;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        
+        .file-viewer-content {
+            flex: 1;
+            overflow: auto;
+            background: #0d0d0d;
+            padding: 10px;
+        }
+        
+        .file-viewer-content pre {
+            margin: 0;
+            font-family: 'Monaco', 'Menlo', monospace;
+            font-size: 12px;
+            line-height: 1.5;
+        }
+        
+        .git-status {
+            padding: 10px;
+            overflow-y: auto;
+        }
+        
+        .git-file {
+            display: flex;
+            align-items: center;
+            padding: 4px 0;
+            font-size: 12px;
+        }
+        
+        .git-badge {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border-radius: 3px;
+            text-align: center;
+            margin-right: 8px;
+            font-size: 10px;
+            font-weight: bold;
+            line-height: 16px;
+        }
+        
+        .git-modified {
+            background: #d4a76a;
+            color: #000;
+        }
+        
+        .git-added {
+            background: #4caf50;
+            color: #fff;
+        }
+        
+        .git-deleted {
+            background: #f44336;
+            color: #fff;
+        }
+        
+        .git-untracked {
+            background: #666;
+            color: #fff;
+        }
+        
+        .empty-state {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            color: #666;
+        }
+        
+        .empty-state h2 {
+            margin-bottom: 10px;
+        }
+        
+        .notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: #252525;
+            border: 1px solid #333;
+            border-radius: 6px;
+            padding: 15px 20px;
+            max-width: 400px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+            animation: slideIn 0.3s ease-out;
+            z-index: 1000;
+        }
+        
+        @keyframes slideIn {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+        
+        .notification.prompt {
+            border-color: #ff9800;
+            background: #3a351e;
+        }
+        
+        .notification-title {
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+        
+        .notification-actions {
+            display: flex;
+            gap: 10px;
+            margin-top: 12px;
+        }
+        
+        .menu-toggle {
+            display: none;
+            position: fixed;
+            top: 10px;
+            left: 10px;
+            z-index: 1001;
+            background: #252525;
+            border: 1px solid #444;
+            color: #fff;
+            padding: 8px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 20px;
+        }
+        
+        @media (max-width: 768px) {
+            .menu-toggle {
+                display: block;
+            }
+            
+            .sidebar {
+                position: fixed;
+                left: -100%;
+                top: 0;
+                height: 100vh;
+                width: 100%;
+                max-width: 100%;
+                z-index: 1000;
+                transition: left 0.3s ease;
+            }
+            
+            .sidebar.open {
+                left: 0;
+            }
+            
+            .main-content {
+                width: 100%;
+                margin-left: 0;
+            }
+            
+            .empty-state {
+                padding: 20px;
+                text-align: center;
+            }
+            
+            .empty-state h2 {
+                font-size: 20px;
+            }
+            
+            .empty-state p {
+                font-size: 14px;
+            }
+            
+            .terminal-container {
+                padding: 0;
+            }
+            
+            .content-tabs {
+                padding: 0 10px;
+                min-height: 40px;
+                overflow-x: auto;
+            }
+            
+            .tab {
+                padding: 8px 12px;
+                font-size: 12px;
+            }
+            
+            .file-explorer {
+                padding: 10px;
+            }
+            
+            .file-tree {
+                font-size: 12px;
+            }
+            
+            .controls button {
+                padding: 6px 10px;
+                font-size: 12px;
+            }
+            
+            .remote-controls {
+                flex-wrap: wrap;
+                padding: 10px;
+            }
+            
+            .remote-controls button {
+                flex: 1 1 auto;
+                min-width: 80px;
+            }
+        }
+        
+    </style>
+</head>
+<body>
+    <button class="menu-toggle" id="menuToggle">☰</button>
+    <div class="container">
+    <div class="sidebar" id="sidebar">
+        <div class="sidebar-header">
+            <h1>🚀 Shellstream</h1>
+            <div class="connection-status">
+                <span class="status-indicator" id="connectionIndicator"></span>
+                <span id="connectionText">Connecting...</span>
+            </div>
+        </div>
+        <div class="sessions-list" id="sessionsList">
+            <!-- Sessions will be populated here -->
+        </div>
+    </div>
+    
+    <div class="main-content">
+        <div id="emptyState" class="empty-state">
+            <h2>No Session Selected</h2>
+            <p>Select a session from the sidebar to begin monitoring</p>
+            <p style="margin-top: 20px; font-size: 12px; color: #444;">
+                Start streaming with: <code style="color: #4a9eff;">shellstream &lt;command&gt;</code>
+            </p>
+        </div>
+        
+        <div id="sessionView" style="display: none; flex-direction: column; height: 100%;">
+            <div class="content-tabs" id="contentTabs">
+                <!-- Tabs will be populated based on selected session -->
+            </div>
+            
+            <!-- File Explorer Tab -->
+            <div class="tab-content active" id="filesTab">
+                <div class="file-header" style="padding: 15px 20px; border-bottom: 1px solid #333; display: flex; justify-content: space-between; align-items: center;">
+                    <div class="file-title">Project Files</div>
+                    <button class="btn" onclick="refreshFiles()" style="padding: 4px 8px;">↻</button>
+                </div>
+                
+                <div class="tabs" style="background: #252525; border-bottom: 1px solid #333;">
+                    <button class="tab active" onclick="switchFileTab('tree', this)">Files</button>
+                    <button class="tab" onclick="switchFileTab('viewer', this)">View</button>
+                    <button class="tab" onclick="switchFileTab('git', this)">Git</button>
+                </div>
+                
+                <div class="file-tab-content active" id="treeTab" style="flex: 1; overflow: auto;">
+                    <div class="file-tree" id="fileTree"></div>
+                </div>
+                
+                <div class="file-tab-content" id="viewerFileTab" style="flex: 1; overflow: auto;">
+                    <div class="file-viewer">
+                        <div class="file-viewer-header" id="fileViewerHeader">
+                            Select a file to view
+                        </div>
+                        <div class="file-viewer-content" id="fileViewerContent">
+                            <pre><code></code></pre>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="file-tab-content" id="gitFileTab" style="flex: 1; overflow: auto;">
+                    <div class="git-status" id="gitStatus" style="padding: 20px;">
+                        <div style="color: #666;">Loading git status...</div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Terminal tabs will be dynamically added here -->
+        </div>
+    </div>
+    
+    <script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xterm-addon-web-links@0.9.0/lib/xterm-addon-web-links.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-javascript.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-typescript.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-python.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-java.min.js"></script>
+    <script>
+        let ws = null;
+        let currentSessionId = null;
+        let currentDirectory = null;
+        let currentDirectorySessions = [];
+        let sessions = new Map();
+        let terminals = new Map();
+        let fileTree = null;
+        let selectedFile = null;
+        let currentTerminal = null;
+        let fitAddon = null;
+        
+        // Mobile menu toggle
+        const menuToggle = document.getElementById('menuToggle');
+        const sidebar = document.getElementById('sidebar');
+        
+        if (menuToggle) {
+            menuToggle.addEventListener('click', () => {
+                sidebar.classList.toggle('open');
+            });
+        }
+        
+        // Close sidebar when selecting a directory on mobile
+        function closeSidebarOnMobile() {
+            if (window.innerWidth <= 768) {
+                sidebar.classList.remove('open');
+            }
+        }
+        
+        function connectWebSocket() {
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const wsUrl = `${protocol}//${window.location.host}/web`;
+            
+            ws = new WebSocket(wsUrl);
+            
+            ws.onopen = () => {
+                console.log('Connected to server');
+                updateConnectionStatus(true);
+            };
+            
+            ws.onmessage = (event) => {
+                const msg = JSON.parse(event.data);
+                handleServerMessage(msg);
+            };
+            
+            ws.onclose = () => {
+                console.log('Disconnected from server');
+                updateConnectionStatus(false);
+                setTimeout(connectWebSocket, 3000);
+            };
+            
+            ws.onerror = (error) => {
+                console.error('WebSocket error:', error);
+            };
+        }
+        
+        function handleServerMessage(msg) {
+            switch (msg.type) {
+                case 'sessions':
+                    updateSessionsList(msg.data);
+                    break;
+                    
+                case 'session_connected':
+                    addSession(msg.session);
+                    showNotification(`Session Connected: ${msg.session.projectName}`, 'info');
+                    break;
+                    
+                case 'session_disconnected':
+                    updateSessionStatus(msg.sessionId, 'disconnected');
+                    break;
+                    
+                case 'output':
+                    console.log('Output received:', {
+                        sessionId: msg.sessionId, 
+                        currentSessionId: currentSessionId,
+                        hasCurrentTerminal: !!currentTerminal,
+                        data: msg.data.substring(0, 50) + '...'
+                    });
+                    if (msg.sessionId === currentSessionId && currentTerminal) {
+                        // Terminal dimensions match exactly - no filtering needed!
+                        currentTerminal.write(msg.data);
+                    } else if (msg.sessionId === currentSessionId && !currentTerminal) {
+                        console.log('No current terminal for session:', currentSessionId);
+                        // Try to find and set the terminal
+                        const terminal = terminals.get(currentSessionId);
+                        if (terminal) {
+                            currentTerminal = terminal;
+                            // No filtering needed - exact dimensions match
+                            currentTerminal.write(msg.data);
+                            console.log('Found and set terminal for session');
+                        }
+                    }
+                    break;
+                    
+                case 'input':
+                    if (msg.sessionId === currentSessionId && currentTerminal) {
+                        // Show input in a different color (optional)
+                        if (msg.source === 'remote') {
+                            currentTerminal.write(`\x1b[33m[remote]\x1b[0m `);
+                        }
+                    }
+                    break;
+                    
+                case 'resize':
+                    if (msg.sessionId === currentSessionId && currentTerminal) {
+                        currentTerminal.resize(msg.cols, msg.rows);
+                        updateTerminalSize(msg.cols, msg.rows);
+                    }
+                    break;
+                    
+                    
+                case 'history':
+                    if (msg.sessionId === currentSessionId && currentTerminal) {
+                        loadHistory(msg.data);
+                    }
+                    break;
+            }
+        }
+        
+        function updateConnectionStatus(connected) {
+            const indicator = document.getElementById('connectionIndicator');
+            const text = document.getElementById('connectionText');
+            
+            if (connected) {
+                indicator.classList.add('connected');
+                text.textContent = 'Connected';
+            } else {
+                indicator.classList.remove('connected');
+                text.textContent = 'Disconnected';
+            }
+        }
+        
+        function updateSessionsList(sessionData) {
+            sessions.clear();
+            sessionData.forEach(session => {
+                // Debug: log session data to see structure
+                console.log('Session data:', session);
+                sessions.set(session.id, session);
+            });
+            renderSessionsList();
+        }
+        
+        function addSession(session) {
+            sessions.set(session.id, session);
+            renderSessionsList();
+        }
+        
+        function updateSessionStatus(sessionId, status) {
+            const session = sessions.get(sessionId);
+            if (session) {
+                if (status === 'prompt') {
+                    session.hasPrompt = true;
+                } else {
+                    session.status = status;
+                    
+                    // If session disconnected, remove it from current directory tabs if applicable
+                    if (status === 'disconnected' && currentDirectory && currentDirectorySessions) {
+                        // Remove from current directory sessions
+                        currentDirectorySessions = currentDirectorySessions.filter(s => s.id !== sessionId);
+                        
+                        // Remove terminal tab content
+                        const terminalTab = document.getElementById('terminal-' + sessionId);
+                        if (terminalTab) {
+                            terminalTab.remove();
+                        }
+                        
+                        // Remove terminal from memory
+                        terminals.delete(sessionId);
+                        
+                        // Recreate tabs without the disconnected session
+                        if (currentDirectory) {
+                            const updatedSessionGroup = Array.from(sessions.values()).filter(s => 
+                                s.projectPath === currentDirectory && s.status === 'active'
+                            );
+                            createDirectoryTabs(currentDirectory, updatedSessionGroup);
+                        }
+                        
+                        // If this was the current session, clear it
+                        if (currentSessionId === sessionId) {
+                            currentSessionId = null;
+                            currentTerminal = null;
+                        }
+                    }
+                }
+                renderSessionsList();
+            }
+        }
+        
+        function renderSessionsList() {
+            const container = document.getElementById('sessionsList');
+            container.innerHTML = '';
+            
+            if (sessions.size === 0) {
+                container.innerHTML = '<div style="padding: 20px; text-align: center; color: #666;">No active directories</div>';
+                return;
+            }
+            
+            // Group sessions by project path and count active ones
+            const groupedSessions = new Map();
+            sessions.forEach(session => {
+                const path = session.projectPath || 'Unknown';
+                console.log('Grouping session:', session.id, 'under path:', path, 'status:', session.status);
+                if (!groupedSessions.has(path)) {
+                    groupedSessions.set(path, []);
+                }
+                groupedSessions.get(path).push(session);
+            });
+            
+            console.log('Grouped sessions:', groupedSessions);
+            
+            // Render directory items with session counts
+            groupedSessions.forEach((sessionGroup, projectPath) => {
+                const activeSessionsCount = sessionGroup.filter(s => s.status === 'active').length;
+                const totalSessionsCount = sessionGroup.length;
+                
+                const directoryItem = document.createElement('div');
+                directoryItem.className = `directory-item ${currentDirectory === projectPath ? 'active' : ''}`;
+                
+                const directoryName = projectPath.split('/').pop() || projectPath;
+                directoryItem.innerHTML = `
+                    <div class="directory-name">📁 ${directoryName}</div>
+                    <div class="session-count">${activeSessionsCount} active • ${totalSessionsCount} total</div>
+                `;
+                
+                directoryItem.onclick = () => selectDirectory(projectPath, sessionGroup);
+                container.appendChild(directoryItem);
+            });
+        }
+        
+        function selectDirectory(directoryPath, sessionGroup) {
+            // Close sidebar on mobile
+            closeSidebarOnMobile();
+            
+            // Unsubscribe from previous session
+            if (currentSessionId && ws && ws.readyState === WebSocket.OPEN) {
+                console.log('Unsubscribing from session:', currentSessionId);
+                ws.send(JSON.stringify({
+                    type: 'unsubscribe',
+                    sessionId: currentSessionId
+                }));
+            }
+            
+            currentDirectory = directoryPath;
+            currentDirectorySessions = sessionGroup.filter(s => s.status === 'active'); // Only active sessions
+            currentSessionId = null;
+            currentTerminal = null;
+            
+            console.log('Selected directory:', directoryPath, 'with', currentDirectorySessions.length, 'active sessions');
+            
+            // Update UI
+            document.getElementById('emptyState').style.display = 'none';
+            document.getElementById('sessionView').style.display = 'flex';
+            
+            // Create tabs for this directory (Files + session tabs)
+            createDirectoryTabs(directoryPath, currentDirectorySessions);
+            
+            // Update sessions list to show active directory
+            renderSessionsList();
+        }
+        
+        function createDirectoryTabs(directoryPath, activeSessions) {
+            const tabsContainer = document.getElementById('contentTabs');
+            tabsContainer.innerHTML = '';
+            
+            // Remove existing tab contents
+            document.querySelectorAll('.tab-content').forEach(content => {
+                if (content.id !== 'filesTab') { // Keep files tab content
+                    content.remove();
+                }
+            });
+            
+            // Files tab (always first)
+            const filesTab = document.createElement('button');
+            filesTab.className = 'content-tab active'; // Make files tab active by default
+            filesTab.textContent = '📁 Files';
+            filesTab.onclick = () => switchContentTab('filesTab', filesTab);
+            tabsContainer.appendChild(filesTab);
+            
+            // Create one tab per active session in this directory
+            activeSessions.forEach(session => {
+                const sessionTab = document.createElement('button');
+                sessionTab.className = 'content-tab';
+                sessionTab.textContent = `💻 ${session.command || 'shell'}`;
+                sessionTab.onclick = () => {
+                    switchContentTab('terminal-' + session.id, sessionTab);
+                    selectSession(session.id); // Set up session subscription
+                };
+                tabsContainer.appendChild(sessionTab);
+                
+                // Create terminal tab content for this session
+                createTerminalTab(session);
+            });
+            
+            // Default to Files tab
+            switchContentTab('filesTab', filesTab);
+            
+            // If there are active sessions, load the file tree for the first one
+            if (activeSessions.length > 0) {
+                loadFileTree(activeSessions[0].id);
+            }
+        }
+        
+        function selectSession(sessionId) {
+            // This is now called when clicking on a session tab
+            // Unsubscribe from previous session
+            if (currentSessionId && ws && ws.readyState === WebSocket.OPEN) {
+                console.log('Unsubscribing from session:', currentSessionId);
+                ws.send(JSON.stringify({
+                    type: 'unsubscribe',
+                    sessionId: currentSessionId
+                }));
+            }
+            
+            currentSessionId = sessionId;
+            
+            // Subscribe to this session's output
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                console.log('Subscribing to session:', sessionId);
+                ws.send(JSON.stringify({
+                    type: 'subscribe',
+                    sessionId: sessionId
+                }));
+            }
+            
+            // Set current terminal
+            const terminal = terminals.get(sessionId);
+            if (terminal) {
+                currentTerminal = terminal;
+                console.log('Set current terminal for session:', sessionId);
+            }
+        }
+        
+        
+        function createTerminalTab(session) {
+            // Remove existing terminal tab content
+            const existingTab = document.getElementById('terminal-' + session.id);
+            if (existingTab) {
+                existingTab.remove();
+            }
+            
+            // Create new terminal tab content
+            const terminalTabContent = document.createElement('div');
+            terminalTabContent.className = 'tab-content';
+            terminalTabContent.id = 'terminal-' + session.id;
+            terminalTabContent.innerHTML = `
+                <div class="session-header" style="padding: 15px 20px; border-bottom: 1px solid #333; display: flex; justify-content: space-between; align-items: center;">
+                    <div class="session-title">
+                        <span>${session.projectName} @ ${session.hostname}</span>
+                        <span class="terminal-size" id="terminalSize">${session.cols || 80}×${session.rows || 24}</span>
+                    </div>
+                    <div class="header-actions">
+                        <button class="btn" onclick="clearTerminal()">Clear</button>
+                        <button class="btn btn-danger" onclick="sendInterrupt()">Interrupt</button>
+                    </div>
+                </div>
+                
+                <div class="terminal-container" style="flex: 1;">
+                    <div id="terminal-${session.id}" style="flex: 1;"></div>
+                </div>
+            `;
+            
+            document.getElementById('sessionView').appendChild(terminalTabContent);
+            
+            // Initialize terminal for this session
+            initializeTerminal(session.id);
+        }
+        
+        function switchContentTab(tabId, tabElement) {
+            // Update tab buttons
+            document.querySelectorAll('.content-tab').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            tabElement.classList.add('active');
+            
+            // Update tab content - hide all first
+            document.querySelectorAll('.tab-content').forEach(content => {
+                content.classList.remove('active');
+                content.style.display = 'none';
+            });
+            
+            // Show the selected tab
+            const selectedTab = document.getElementById(tabId);
+            if (selectedTab) {
+                selectedTab.classList.add('active');
+                selectedTab.style.display = 'flex';
+            }
+            
+            // If switching to terminal tab, set current terminal
+            if (tabId.startsWith('terminal-') && currentSessionId) {
+                const sessionId = tabId.replace('terminal-', '');
+                const terminal = terminals.get(sessionId);
+                if (terminal) {
+                    currentTerminal = terminal;
+                }
+            }
+            
+            // If switching to files tab, load files for current session
+            if (tabId === 'filesTab' && currentSessionId) {
+                loadFileTree(currentSessionId);
+            }
+        }
+        
+        function switchFileTab(tabName, element) {
+            // Update tab buttons
+            document.querySelectorAll('.tab').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            element.classList.add('active');
+            
+            // Update tab content
+            document.querySelectorAll('.file-tab-content').forEach(content => {
+                content.classList.remove('active');
+            });
+            document.getElementById(tabName + 'Tab').classList.add('active');
+            
+            if (tabName === 'git' && currentSessionId) {
+                loadGitStatus(currentSessionId);
+            }
+        }
+        
+        function initializeTerminal(sessionId) {
+            const terminalContainer = document.getElementById('terminal-' + sessionId);
+            if (!terminalContainer) {
+                console.log('Terminal container not found for session:', sessionId);
+                return;
+            }
+            
+            console.log('Initializing terminal for session:', sessionId);
+            
+            // Clear any existing terminal
+            terminalContainer.innerHTML = '';
+            
+            // Get the session to match its exact dimensions
+            const session = sessions.get(sessionId);
+            const termCols = session ? session.cols : 80;
+            const termRows = session ? session.rows : 24;
+            
+            console.log(`Creating terminal with exact remote dimensions: ${termCols}×${termRows}`);
+            
+            // Create terminal with EXACT same dimensions as remote
+            const term = new Terminal({
+                cols: termCols,
+                rows: termRows,
+                theme: {
+                    background: '#0a0a0a',
+                    foreground: '#e0e0e0',
+                    cursor: '#ffffff',
+                    selection: '#444444'
+                },
+                fontFamily: 'Monaco, Menlo, "Ubuntu Mono", monospace',
+                fontSize: 13,
+                lineHeight: 1.2,
+                cursorBlink: true,
+                scrollback: 10000
+            });
+            
+            const webLinksAddon = new WebLinksAddon.WebLinksAddon();
+            term.loadAddon(webLinksAddon);
+            
+            term.open(terminalContainer);
+            
+            // Don't fit - use exact dimensions from remote terminal
+            console.log(`Terminal opened with ${term.cols}×${term.rows} (matching remote)`);
+            
+            // Handle terminal input - send directly to server
+            term.onData((data) => {
+                if (sessionId === currentSessionId && ws && ws.readyState === WebSocket.OPEN) {
+                    ws.send(JSON.stringify({
+                        type: 'input',
+                        sessionId: sessionId,
+                        data: data
+                    }));
+                }
+            });
+            
+            // Store terminal
+            terminals.set(sessionId, term);
+            if (sessionId === currentSessionId) {
+                currentTerminal = term;
+                console.log('Set current terminal for session:', sessionId);
+            }
+            console.log('Terminal initialized and stored for session:', sessionId);
+        }
+        
+        
+        
+        function loadHistory(history) {
+            if (!currentTerminal) return;
+            
+            // Clear terminal first
+            currentTerminal.clear();
+            
+            // Write history
+            history.forEach(entry => {
+                if (entry.type === 'output' && entry.data) {
+                    currentTerminal.write(entry.data);
+                }
+            });
+        }
+        
+        function updateTerminalSize(cols, rows) {
+            // Update terminal size display for current session
+            if (currentSessionId) {
+                const terminalSizeEl = document.querySelector(`#terminal-${currentSessionId} .terminal-size`);
+                if (terminalSizeEl) {
+                    terminalSizeEl.textContent = `${cols}×${rows}`;
+                }
+            }
+        }
+        
+        async function loadFileTree(sessionId) {
+            try {
+                const response = await fetch(`/api/session/${sessionId}/files?depth=3`);
+                const tree = await response.json();
+                fileTree = tree;
+                renderFileTree(tree, document.getElementById('fileTree'));
+            } catch (err) {
+                console.error('Error loading file tree:', err);
+            }
+        }
+        
+        function renderFileTree(node, container, level = 0) {
+            if (!node) return;
+            
+            if (level === 0) {
+                container.innerHTML = '';
+            }
+            
+            if (node.children) {
+                node.children.forEach(child => {
+                    const item = document.createElement('div');
+                    item.className = 'tree-item';
+                    item.style.paddingLeft = `${level * 20 + 8}px`;
+                    
+                    const isFolder = child.type === 'directory';
+                    const icon = isFolder ? '📁' : getFileIcon(child.name);
+                    
+                    item.innerHTML = `
+                        <span class="tree-icon">${icon}</span>
+                        <span>${child.name}</span>
+                    `;
+                    
+                    container.appendChild(item);
+                    
+                    if (isFolder) {
+                        item.onclick = () => {
+                            const nextSibling = item.nextElementSibling;
+                            if (nextSibling && nextSibling.classList.contains('tree-children')) {
+                                nextSibling.style.display = 
+                                    nextSibling.style.display === 'none' ? 'block' : 'none';
+                            } else {
+                                const childContainer = document.createElement('div');
+                                childContainer.className = 'tree-children';
+                                item.after(childContainer);
+                                renderFileTree(child, childContainer, level + 1);
+                            }
+                        };
+                    } else {
+                        item.onclick = () => viewFile(child.path);
+                    }
+                });
+            }
+        }
+        
+        async function viewFile(filePath) {
+            try {
+                const response = await fetch(`/api/session/${currentSessionId}/file?path=${encodeURIComponent(filePath)}`);
+                const data = await response.json();
+                
+                if (data.error) {
+                    document.getElementById('fileViewerContent').innerHTML = 
+                        `<pre style="color: #f44336;">Error: ${data.error}</pre>`;
+                } else {
+                    const filename = filePath.split('/').pop();
+                    document.getElementById('fileViewerHeader').textContent = filename;
+                    
+                    const code = document.getElementById('fileViewerContent').querySelector('code');
+                    code.textContent = data.content;
+                    code.className = `language-${data.language}`;
+                    
+                    // Highlight code
+                    Prism.highlightElement(code);
+                    
+                    // Switch to viewer tab
+                    switchTab('viewer', document.querySelector('.tab:nth-child(2)'));
+                }
+            } catch (err) {
+                console.error('Error loading file:', err);
+                document.getElementById('fileViewerContent').innerHTML = 
+                    `<pre style="color: #f44336;">Error loading file</pre>`;
+            }
+        }
+        
+        async function loadGitStatus(sessionId) {
+            try {
+                const response = await fetch(`/api/session/${sessionId}/git-status`);
+                const data = await response.json();
+                
+                const container = document.getElementById('gitStatus');
+                
+                if (data.error) {
+                    container.innerHTML = `<div style="color: #666;">${data.error}</div>`;
+                } else if (data.files && data.files.length > 0) {
+                    container.innerHTML = data.files.map(file => `
+                        <div class="git-file">
+                            <span class="git-badge git-${file.status}">
+                                ${file.status[0].toUpperCase()}
+                            </span>
+                            <span>${file.file}</span>
+                        </div>
+                    `).join('');
+                } else {
+                    container.innerHTML = '<div style="color: #666;">Working tree clean</div>';
+                }
+            } catch (err) {
+                console.error('Error loading git status:', err);
+            }
+        }
+        
+        function getFileIcon(filename) {
+            const ext = filename.split('.').pop().toLowerCase();
+            const icons = {
+                'js': '📜', 'jsx': '⚛️', 'ts': '📘', 'tsx': '⚛️',
+                'py': '🐍', 'java': '☕', 'go': '🐹', 'rs': '🦀',
+                'html': '🌐', 'css': '🎨', 'json': '📋', 'md': '📝',
+                'yml': '⚙️', 'yaml': '⚙️', 'env': '🔐', 'gitignore': '🔧'
+            };
+            return icons[ext] || '📄';
+        }
+        
+        
+        function sendCommand(command) {
+            if (!currentSessionId) return;
+            
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({
+                    type: 'command',
+                    sessionId: currentSessionId,
+                    command: command
+                }));
+            }
+        }
+        
+        function sendInterrupt() {
+            sendCommand('interrupt');
+            if (currentTerminal) {
+                currentTerminal.write('\x1b[31m^C\x1b[0m\n');
+            }
+        }
+        
+        function clearTerminal() {
+            if (currentTerminal) {
+                currentTerminal.clear();
+            }
+        }
+        
+        function toggleFilePanel() {
+            const panel = document.getElementById('filePanel');
+            const toggle = document.getElementById('fileToggle');
+            
+            if (panel.classList.contains('collapsed')) {
+                panel.classList.remove('collapsed');
+                toggle.textContent = 'Files ◄';
+                
+                // Load files if not loaded
+                if (currentSessionId && !fileTree) {
+                    loadFileTree(currentSessionId);
+                    loadGitStatus(currentSessionId);
+                }
+            } else {
+                panel.classList.add('collapsed');
+                toggle.textContent = 'Files ►';
+            }
+        }
+        
+        function refreshFiles() {
+            if (currentSessionId) {
+                loadFileTree(currentSessionId);
+                loadGitStatus(currentSessionId);
+            }
+        }
+        
+
+        
+        
+        
+        function showNotification(message, type = 'info') {
+            const notification = document.createElement('div');
+            notification.className = 'notification';
+            notification.innerHTML = `<div class="notification-title">${message}</div>`;
+            document.body.appendChild(notification);
+            
+            setTimeout(() => {
+                notification.remove();
+            }, 5000);
+        }
+        
+        function toggleSidebar() {
+            document.getElementById('sidebar').classList.toggle('open');
+        }
+        
+        // Initialize
+        connectWebSocket();
+        
+        // Request notification permission
+        if ('Notification' in window && Notification.permission === 'default') {
+            Notification.requestPermission();
+        }
+    </script>
+    </div> <!-- Close container -->
+</body>
+</html>

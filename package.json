@@ -1,0 +1,52 @@
+{
+  "name": "shellstream",
+  "version": "1.0.0",
+  "description": "Stream any terminal session to the web",
+  "main": "shellstream.js",
+  "bin": {
+    "shellstream": "./shellstream.js",
+    "ss": "./shellstream.js"
+  },
+  "scripts": {
+    "start": "node shellstream.js",
+    "server": "node server.js",
+    "server:start": "node server-manager.js start",
+    "server:stop": "node server-manager.js stop",
+    "server:restart": "node server-manager.js restart",
+    "server:status": "node server-manager.js status",
+    "server:logs": "node server-manager.js logs",
+    "server:clean": "node server-manager.js clean",
+    "setup": "node setup.js",
+    "dev": "nodemon server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "ws": "^8.14.2",
+    "node-pty": "^1.0.0",
+    "uuid": "^9.0.1"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.1"
+  },
+  "engines": {
+    "node": ">=14.0.0"
+  },
+  "keywords": [
+    "terminal",
+    "shell",
+    "stream",
+    "monitor",
+    "remote",
+    "web",
+    "cli",
+    "devops",
+    "ssh",
+    "tmux"
+  ],
+  "author": "",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yourusername/shellstream.git"
+  }
+}
