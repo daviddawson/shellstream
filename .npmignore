@@ -1,0 +1,39 @@
+# Development files
+.idea/
+*.log
+.DS_Store
+node_modules/
+.git/
+.gitignore
+
+# Server runtime files
+.server.pid
+logs/
+
+# Development configs
+.vscode/
+*.swp
+*.swo
+*~
+
+# Test files
+test/
+tests/
+*.test.js
+*.spec.js
+
+# Build files
+dist/
+build/
+
+# Documentation source files (keep README.md and LICENSE)
+docs/
+*.md
+!README.md
+!LICENSE
+CLAUDE.md
+
+# Configuration files
+.env
+.env.*
+config.local.js

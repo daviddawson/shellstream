@@ -1,6 +1,6 @@
 {
-  "name": "shellstream",
-  "version": "1.0.0",
+  "name": "@daviddawson/shellstream",
+  "version": "1.0.1",
   "description": "Stream any terminal session to the web",
   "main": "shellstream.js",
   "bin": {
@@ -43,10 +43,14 @@
     "ssh",
     "tmux"
   ],
-  "author": "",
+  "author": "Your Name <your.email@example.com>",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/yourusername/shellstream.git"
+    "url": "https://github.com/daviddawson/shellstream.git"
+  },
+  "homepage": "https://github.com/daviddawson/shellstream#readme",
+  "bugs": {
+    "url": "https://github.com/daviddawson/shellstream/issues"
   }
 }
