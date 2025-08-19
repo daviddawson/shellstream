@@ -1229,23 +1229,36 @@
             
             console.log('Grouped sessions:', groupedSessions);
             
-            // Render directory items with session counts
+            // Check if any directories have active sessions
+            let hasActiveDirectories = false;
+            
+            // Render directory items with session counts - only show if has active sessions
             groupedSessions.forEach((sessionGroup, projectPath) => {
                 const activeSessionsCount = sessionGroup.filter(s => s.status === 'active').length;
-                const totalSessionsCount = sessionGroup.length;
                 
-                const directoryItem = document.createElement('div');
-                directoryItem.className = `directory-item ${currentDirectory === projectPath ? 'active' : ''}`;
-                
-                const directoryName = projectPath.split('/').pop() || projectPath;
-                directoryItem.innerHTML = `
-                    <div class="directory-name">📁 ${directoryName}</div>
-                    <div class="session-count">${activeSessionsCount} active • ${totalSessionsCount} total</div>
-                `;
-                
-                directoryItem.onclick = () => selectDirectory(projectPath, sessionGroup);
-                container.appendChild(directoryItem);
+                // Only show directories with at least one active session
+                if (activeSessionsCount > 0) {
+                    hasActiveDirectories = true;
+                    const totalSessionsCount = sessionGroup.length;
+                    
+                    const directoryItem = document.createElement('div');
+                    directoryItem.className = `directory-item ${currentDirectory === projectPath ? 'active' : ''}`;
+                    
+                    const directoryName = projectPath.split('/').pop() || projectPath;
+                    directoryItem.innerHTML = `
+                        <div class="directory-name">📁 ${directoryName}</div>
+                        <div class="session-count">${activeSessionsCount} active${totalSessionsCount > activeSessionsCount ? ` • ${totalSessionsCount} total` : ''}</div>
+                    `;
+                    
+                    directoryItem.onclick = () => selectDirectory(projectPath, sessionGroup);
+                    container.appendChild(directoryItem);
+                }
             });
+            
+            // Show "No active directories" if all sessions are inactive
+            if (!hasActiveDirectories && sessions.size > 0) {
+                container.innerHTML = '<div style="padding: 20px; text-align: center; color: #666;">No active sessions</div>';
+            }
         }
         
         function selectDirectory(directoryPath, sessionGroup) {
