@@ -1,12 +1,21 @@
 {
   "name": "@daviddawson/shellstream",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "Stream any terminal session to the web",
   "main": "shellstream.js",
   "bin": {
     "shellstream": "./shellstream.js",
     "ss": "./shellstream.js"
   },
+  "files": [
+    "shellstream.js",
+    "server.js",
+    "server-manager.js",
+    "setup.js",
+    "public/",
+    "README.md",
+    "LICENSE"
+  ],
   "scripts": {
     "start": "node shellstream.js",
     "server": "node server.js",

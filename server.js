@@ -32,8 +32,9 @@ class ShellstreamServer {
   }
 
   setupExpress() {
-    // Serve static files
-    this.app.use(express.static('public'));
+    // Serve static files from the module's public directory
+    const publicPath = path.join(__dirname, 'public');
+    this.app.use(express.static(publicPath));
     this.app.use(express.json());
     
     // API endpoints
