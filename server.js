@@ -493,6 +493,45 @@ class ShellstreamServer {
       res.json(status);
     });
     
+    // Get git diff for a file
+    this.app.get('/api/git-diff', async (req, res) => {
+      const directoryPath = req.query.path;
+      const filePath = req.query.file;
+      
+      if (!directoryPath || !filePath) {
+        return res.status(400).json({ error: 'Directory path and file path required' });
+      }
+      
+      const diff = await this.fileBrowser.getGitDiff(directoryPath, filePath);
+      res.json(diff);
+    });
+    
+    // Shutdown endpoint (only accepts requests from localhost)
+    this.app.post('/api/shutdown', (req, res) => {
+      const remoteAddress = req.connection.remoteAddress || req.socket.remoteAddress;
+      
+      // Only allow shutdown from localhost
+      if (remoteAddress === '127.0.0.1' || remoteAddress === '::1' || remoteAddress === '::ffff:127.0.0.1') {
+        console.log('[Server] Shutdown requested from localhost');
+        res.json({ message: 'Server shutting down' });
+        
+        // Close all WebSocket connections
+        this.wss.clients.forEach(client => {
+          client.close();
+        });
+        
+        // Close the server
+        setTimeout(() => {
+          this.server.close(() => {
+            console.log('[Server] Server shutdown complete');
+            process.exit(0);
+          });
+        }, 100);
+      } else {
+        res.status(403).json({ error: 'Shutdown only allowed from localhost' });
+      }
+    });
+    
     // Get recently modified files (no session required)
     this.app.get('/api/recent-files', async (req, res) => {
       const directoryPath = req.query.path;
@@ -688,6 +727,40 @@ class FileBrowser {
       return { files };
     } catch (err) {
       return { error: 'Not a git repository' };
+    }
+  }
+
+  async getGitDiff(projectPath, filePath) {
+    try {
+      const { stdout } = await execPromise(`git diff HEAD -- "${filePath}"`, {
+        cwd: projectPath
+      });
+      
+      if (!stdout) {
+        // Try to get diff for staged files
+        const { stdout: stagedDiff } = await execPromise(`git diff --cached -- "${filePath}"`, {
+          cwd: projectPath
+        });
+        
+        if (!stagedDiff) {
+          // For untracked files, show the entire content as addition
+          const fullPath = path.join(projectPath, filePath);
+          if (fs.existsSync(fullPath)) {
+            const content = await fs.readFile(fullPath, 'utf8');
+            const lines = content.split('\n');
+            return {
+              diff: lines.map(line => `+${line}`).join('\n'),
+              isNew: true
+            };
+          }
+          return { diff: '', error: 'No changes detected' };
+        }
+        return { diff: stagedDiff, isStaged: true };
+      }
+      
+      return { diff: stdout };
+    } catch (err) {
+      return { error: `Failed to get diff: ${err.message}` };
     }
   }
 

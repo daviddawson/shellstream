@@ -927,6 +927,10 @@
             }
         }
         
+        #diffContent {
+            transition: opacity 0.2s ease;
+        }
+        
     </style>
 </head>
 <body>
@@ -971,26 +975,29 @@
                     <button class="tab" onclick="switchFileTab('git', this)">Git</button>
                 </div>
                 
-                <div class="file-tab-content active" id="filesFileTab" style="flex: 1; overflow: auto; display: flex; flex-direction: row;">
-                    <div class="file-tree-container" id="fileTreeContainer" style="width: 40%; border-right: 1px solid #333; overflow-y: auto;">
-                        <div class="file-tree" id="fileTree"></div>
-                    </div>
-                    <div class="file-viewer-container" id="fileViewerContainer" style="flex: 1; overflow: auto;">
-                        <div class="file-viewer">
-                            <div class="file-viewer-header" id="fileViewerHeader">
-                                <button class="mobile-back-btn" onclick="showFileTree()" style="display: none;">← Back</button>
-                                <span id="fileViewerTitle">Select a file to view</span>
-                            </div>
-                            <div class="file-viewer-content" id="fileViewerContent">
-                                <pre><code></code></pre>
+                <!-- Tab content container that will hold either Files or Git content -->
+                <div style="flex: 1; overflow: auto; display: flex; flex-direction: column;">
+                    <div class="file-tab-content active" id="filesFileTab" style="flex: 1; overflow: auto; display: flex; flex-direction: row;">
+                        <div class="file-tree-container" id="fileTreeContainer" style="width: 40%; border-right: 1px solid #333; overflow-y: auto;">
+                            <div class="file-tree" id="fileTree"></div>
+                        </div>
+                        <div class="file-viewer-container" id="fileViewerContainer" style="flex: 1; overflow: auto;">
+                            <div class="file-viewer">
+                                <div class="file-viewer-header" id="fileViewerHeader">
+                                    <button class="mobile-back-btn" onclick="showFileTree()" style="display: none;">← Back</button>
+                                    <span id="fileViewerTitle">Select a file to view</span>
+                                </div>
+                                <div class="file-viewer-content" id="fileViewerContent">
+                                    <pre><code></code></pre>
+                                </div>
                             </div>
                         </div>
                     </div>
-                </div>
-                
-                <div class="file-tab-content" id="gitFileTab" style="flex: 1; overflow: auto;">
-                    <div class="git-status" id="gitStatus" style="padding: 20px;">
-                        <div style="color: #666;">Loading git status...</div>
+                    
+                    <div class="file-tab-content" id="gitFileTab" style="flex: 1; overflow: auto; display: none;">
+                        <div class="git-status" id="gitStatus" style="padding: 20px;">
+                            <div style="color: #666;">Loading git status...</div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -1018,6 +1025,8 @@
         let selectedFile = null;
         let currentTerminal = null;
         let fitAddon = null;
+        let gitRefreshInterval = null;
+        let currentGitDiffFile = null;
         
         // Helper function to escape HTML
         function escapeHtml(text) {
@@ -1265,6 +1274,10 @@
             // Close sidebar on mobile
             closeSidebarOnMobile();
             
+            // Stop git auto-refresh when switching directories
+            stopGitAutoRefresh();
+            currentGitDiffFile = null;
+            
             // Unsubscribe from previous session
             if (currentSessionId && ws && ws.readyState === WebSocket.OPEN) {
                 console.log('Unsubscribing from session:', currentSessionId);
@@ -1446,20 +1459,56 @@
             });
             element.classList.add('active');
             
-            // Update tab content
+            // Hide all file tab content
             document.querySelectorAll('.file-tab-content').forEach(content => {
                 content.classList.remove('active');
+                content.style.display = 'none';
             });
             
-            // Handle the tab IDs
+            // Show the selected tab content
             const tabId = tabName + 'FileTab';
             const tabContent = document.getElementById(tabId);
             if (tabContent) {
                 tabContent.classList.add('active');
+                // Use flex for files tab, block for git tab
+                if (tabName === 'files') {
+                    tabContent.style.display = 'flex';
+                } else {
+                    tabContent.style.display = 'block';
+                }
             }
             
             if (tabName === 'git' && currentDirectory) {
                 loadGitStatus(currentDirectory);
+                // Start auto-refresh for git status (every 2 seconds)
+                startGitAutoRefresh();
+            } else {
+                // Stop auto-refresh when not on git tab
+                stopGitAutoRefresh();
+            }
+        }
+        
+        function startGitAutoRefresh() {
+            // Clear any existing interval
+            stopGitAutoRefresh();
+            
+            // Set up new interval for refreshing git status and diff
+            gitRefreshInterval = setInterval(() => {
+                if (currentDirectory) {
+                    loadGitStatus(currentDirectory, true); // Preserve selection
+                    
+                    // Also refresh the diff if one is selected
+                    if (currentGitDiffFile) {
+                        loadGitDiff(currentGitDiffFile, null, true); // Auto-refresh flag
+                    }
+                }
+            }, 2000); // Refresh every 2 seconds
+        }
+        
+        function stopGitAutoRefresh() {
+            if (gitRefreshInterval) {
+                clearInterval(gitRefreshInterval);
+                gitRefreshInterval = null;
             }
         }
         
@@ -1743,7 +1792,7 @@
             }
         }
         
-        async function loadGitStatus(directoryPath) {
+        async function loadGitStatus(directoryPath, preserveSelection = false) {
             try {
                 const response = await fetch(`/api/git-status?path=${encodeURIComponent(directoryPath || currentDirectory)}`);
                 const data = await response.json();
@@ -1753,20 +1802,174 @@
                 if (data.error) {
                     container.innerHTML = `<div style="color: #666;">${data.error}</div>`;
                 } else if (data.files && data.files.length > 0) {
-                    container.innerHTML = data.files.map(file => `
-                        <div class="git-file">
-                            <span class="git-badge git-${file.status}">
-                                ${file.status[0].toUpperCase()}
-                            </span>
-                            <span>${file.file}</span>
+                    // Store current diff viewer content if preserving selection
+                    let currentDiffContent = null;
+                    if (preserveSelection && currentGitDiffFile) {
+                        const diffViewer = document.getElementById('gitDiffViewer');
+                        if (diffViewer) {
+                            currentDiffContent = diffViewer.innerHTML;
+                        }
+                    }
+                    
+                    container.innerHTML = `
+                        <div style="display: flex; height: 100%;">
+                            <div style="width: 300px; border-right: 1px solid #333; overflow-y: auto; padding: 10px;">
+                                <div style="padding: 5px 8px; border-bottom: 1px solid #333; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center;">
+                                    <span style="color: #888; font-size: 11px;">Auto-refresh: ON</span>
+                                    <span style="color: #4caf50; font-size: 10px;">● Live</span>
+                                </div>
+                                ${data.files.map(file => `
+                                    <div class="git-file" 
+                                         data-filename="${escapeHtml(file.file)}"
+                                         style="cursor: pointer; padding: 8px; border-radius: 4px; margin-bottom: 4px; ${preserveSelection && currentGitDiffFile === file.file ? 'background-color: #333;' : ''}" 
+                                         onclick="loadGitDiff('${escapeHtml(file.file)}', this)" 
+                                         onmouseover="if(this.dataset.filename !== currentGitDiffFile) this.style.backgroundColor='#333'" 
+                                         onmouseout="if(this.dataset.filename !== currentGitDiffFile) this.style.backgroundColor='transparent'">
+                                        <span class="git-badge git-${file.status}">
+                                            ${file.status[0].toUpperCase()}
+                                        </span>
+                                        <span>${file.file}</span>
+                                    </div>
+                                `).join('')}
+                            </div>
+                            <div id="gitDiffViewer" style="flex: 1; overflow: auto; padding: 20px; font-family: 'Monaco', 'Menlo', monospace; font-size: 12px;">
+                                ${preserveSelection && currentDiffContent ? currentDiffContent : '<div style="color: #666;">Select a file to view diff</div>'}
+                            </div>
                         </div>
-                    `).join('');
+                    `;
+                    
+                    // If preserving selection and file still exists, just highlight it
+                    if (preserveSelection && currentGitDiffFile) {
+                        const fileStillExists = data.files.some(f => f.file === currentGitDiffFile);
+                        if (!fileStillExists) {
+                            // File no longer has changes, clear selection
+                            currentGitDiffFile = null;
+                            const diffViewer = document.getElementById('gitDiffViewer');
+                            if (diffViewer) {
+                                diffViewer.innerHTML = '<div style="color: #666;">File no longer has changes</div>';
+                            }
+                        }
+                        // Don't reload diff here - it's handled by the auto-refresh interval
+                    }
                 } else {
                     container.innerHTML = '<div style="color: #666;">Working tree clean</div>';
+                    currentGitDiffFile = null;
                 }
             } catch (err) {
                 console.error('Error loading git status:', err);
             }
+        }
+        
+        async function loadGitDiff(filePath, element, isAutoRefresh = false) {
+            // Track current file for auto-refresh
+            currentGitDiffFile = filePath;
+            
+            // Highlight selected file
+            if (!isAutoRefresh) {
+                document.querySelectorAll('.git-file').forEach(el => {
+                    el.style.backgroundColor = 'transparent';
+                });
+                if (element) {
+                    element.style.backgroundColor = '#333';
+                }
+            }
+            
+            const viewer = document.getElementById('gitDiffViewer');
+            
+            // Store scroll position before update
+            const scrollTop = viewer.scrollTop;
+            const scrollHeight = viewer.scrollHeight;
+            
+            // Show loading only for initial load, not refresh
+            if (!isAutoRefresh) {
+                viewer.innerHTML = '<div style="color: #666;">Loading diff...</div>';
+            }
+            
+            try {
+                const response = await fetch(`/api/git-diff?path=${encodeURIComponent(currentDirectory)}&file=${encodeURIComponent(filePath)}`);
+                const data = await response.json();
+                
+                if (data.error) {
+                    viewer.innerHTML = `<div style="color: #f44336;">${data.error}</div>`;
+                } else if (data.diff) {
+                    const formattedDiff = formatGitDiff(data.diff);
+                    
+                    // Create new content
+                    const newContent = `
+                        <div id="diffHeader" style="margin-bottom: 10px; padding-bottom: 10px; border-bottom: 1px solid #333;">
+                            <strong style="color: #fff;">${filePath}</strong>
+                            ${data.isNew ? '<span style="color: #4caf50; margin-left: 10px;">(new file)</span>' : ''}
+                            ${data.isStaged ? '<span style="color: #ff9800; margin-left: 10px;">(staged)</span>' : ''}
+                            <span style="color: #666; margin-left: 10px; font-size: 11px;">(auto-refreshing)</span>
+                        </div>
+                        <pre id="diffContent" style="margin: 0; line-height: 1.4;">${formattedDiff}</pre>
+                    `;
+                    
+                    // For auto-refresh, update smoothly
+                    if (isAutoRefresh) {
+                        const currentPre = viewer.querySelector('#diffContent');
+                        if (currentPre) {
+                            // Store current diff data to check if it changed
+                            const currentDiff = currentPre.getAttribute('data-raw-diff');
+                            
+                            // Only update if diff actually changed
+                            if (currentDiff !== data.diff) {
+                                // Content changed, update smoothly
+                                currentPre.style.opacity = '0.7';
+                                setTimeout(() => {
+                                    currentPre.innerHTML = formattedDiff;
+                                    currentPre.setAttribute('data-raw-diff', data.diff);
+                                    currentPre.style.opacity = '1';
+                                    
+                                    // Restore scroll position proportionally
+                                    const newScrollHeight = viewer.scrollHeight;
+                                    const scrollRatio = scrollHeight > 0 ? scrollTop / scrollHeight : 0;
+                                    viewer.scrollTop = scrollRatio * newScrollHeight;
+                                }, 100);
+                            }
+                            // If content hasn't changed, do nothing to avoid flicker
+                        } else {
+                            // No existing content, just set it
+                            viewer.innerHTML = newContent;
+                            const newPre = viewer.querySelector('#diffContent');
+                            if (newPre) {
+                                newPre.setAttribute('data-raw-diff', data.diff);
+                            }
+                        }
+                    } else {
+                        // Initial load, just set the content
+                        viewer.innerHTML = newContent;
+                        const newPre = viewer.querySelector('#diffContent');
+                        if (newPre) {
+                            newPre.setAttribute('data-raw-diff', data.diff);
+                        }
+                    }
+                } else {
+                    viewer.innerHTML = '<div style="color: #666;">No changes to display</div>';
+                }
+            } catch (err) {
+                // Only show error on initial load, not on refresh failures
+                if (!isAutoRefresh) {
+                    viewer.innerHTML = `<div style="color: #f44336;">Error loading diff: ${err.message}</div>`;
+                }
+            }
+        }
+        
+        function formatGitDiff(diff) {
+            const lines = diff.split('\n');
+            return lines.map(line => {
+                let formatted = escapeHtml(line);
+                if (line.startsWith('+')) {
+                    return `<span style="color: #4caf50; background: #1b3a1b;">${formatted}</span>`;
+                } else if (line.startsWith('-')) {
+                    return `<span style="color: #f44336; background: #3a1b1b;">${formatted}</span>`;
+                } else if (line.startsWith('@@')) {
+                    return `<span style="color: #2196f3;">${formatted}</span>`;
+                } else if (line.startsWith('diff --git')) {
+                    return `<span style="color: #ff9800; font-weight: bold;">${formatted}</span>`;
+                }
+                return formatted;
+            }).join('\n');
         }
         
         function getFileIcon(filename) {

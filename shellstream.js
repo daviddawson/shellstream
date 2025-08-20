@@ -204,10 +204,7 @@ class Shellstream {
       
       serverProcess.unref();
       
-      const pidFile = path.join(__dirname, '.server.pid');
-      fs.writeFileSync(pidFile, serverProcess.pid.toString());
-      
-      console.error(`[Monitor] Server started with PID ${serverProcess.pid}`);
+      console.error(`[Monitor] Server started`);
       console.error(`[Monitor] Web UI available at http://localhost:${this.serverPort}`);
       this.serverAutoStarted = true;
       
@@ -476,18 +473,157 @@ class Shellstream {
   }
 }
 
+// Helper functions for server management
+async function getServerStatus(port) {
+  const isRunning = await checkServerRunning(port);
+  return { isRunning, port };
+}
+
+async function checkServerRunning(port) {
+  return new Promise((resolve) => {
+    const socket = new net.Socket();
+    socket.setTimeout(1000);
+    socket.on('connect', () => {
+      socket.destroy();
+      resolve(true);
+    });
+    socket.on('timeout', () => {
+      socket.destroy();
+      resolve(false);
+    });
+    socket.on('error', () => {
+      resolve(false);
+    });
+    socket.connect(port, 'localhost');
+  });
+}
+
+async function stopServer(port) {
+  try {
+    // First check if server is running
+    const isRunning = await checkServerRunning(port);
+    if (!isRunning) {
+      console.log('Server is not running');
+      return false;
+    }
+    
+    // Send shutdown request to the server
+    const response = await fetch(`http://localhost:${port}/api/shutdown`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    });
+    
+    if (response.ok) {
+      const data = await response.json();
+      console.log('Server shutdown initiated');
+      
+      // Wait a moment for server to actually stop
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      // Verify it's stopped
+      const stillRunning = await checkServerRunning(port);
+      if (!stillRunning) {
+        console.log('Server stopped successfully');
+        return true;
+      } else {
+        console.log('Server may still be shutting down...');
+        return true;
+      }
+    } else {
+      console.error('Failed to stop server:', response.statusText);
+      return false;
+    }
+  } catch (err) {
+    console.error('Error stopping server:', err.message);
+    return false;
+  }
+}
+
+async function showServerLogs() {
+  const logDir = path.join(__dirname, 'logs');
+  const logFile = path.join(logDir, 'server.log');
+  
+  if (!fs.existsSync(logFile)) {
+    console.log('No server logs found');
+    return;
+  }
+  
+  // Show last 50 lines of logs
+  const logs = fs.readFileSync(logFile, 'utf8');
+  const lines = logs.split('\n');
+  const lastLines = lines.slice(-50).join('\n');
+  console.log(lastLines);
+}
+
 // Main execution
 if (require.main === module) {
   // Parse command line arguments
   const args = process.argv.slice(2);
+  const serverPort = parseInt(process.env.SHELLSTREAM_PORT || 47832);
   
-  if (args.length === 0) {
+  // Handle server management commands
+  if (args.length === 1) {
+    switch(args[0]) {
+      case '--status':
+        getServerStatus(serverPort).then(status => {
+          console.log('═══════════════════════════════════════');
+          console.log('  Shellstream Server Status');
+          console.log('═══════════════════════════════════════');
+          console.log(`  Status:     ${status.isRunning ? '✓ Running' : '✗ Stopped'}`);
+          console.log(`  Port:       ${status.port}`);
+          if (status.isRunning) {
+            console.log(`  Web UI:     http://localhost:${status.port}`);
+          }
+          console.log('═══════════════════════════════════════');
+          process.exit(0);
+        });
+        return;
+        
+      case '--stop':
+        stopServer(serverPort).then(success => {
+          process.exit(success ? 0 : 1);
+        });
+        return;
+        
+      case '--restart':
+        console.log('Restarting server...');
+        stopServer(serverPort).then(async () => {
+          // Wait for process to fully stop
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          
+          // Start new server by creating a dummy wrapper
+          const wrapper = new Shellstream('echo', ['Server restarted'], {
+            serverPort: serverPort
+          });
+          await wrapper.ensureServerRunning();
+          console.log('Server restarted successfully');
+          process.exit(0);
+        });
+        return;
+        
+      case '--logs':
+        showServerLogs();
+        process.exit(0);
+        return;
+    }
+  }
+  
+  if (args.length === 0 || args[0] === '--help' || args[0] === '-h') {
     console.log(`
 🚀 Shellstream - Stream terminal sessions to the web
 
 USAGE
   shellstream <command> [args...]
+  shellstream --help                        # Show this help message
   ss <command> [args...]                    # Short alias
+
+SERVER MANAGEMENT
+  shellstream --status                      # Check server status
+  shellstream --stop                        # Stop the server
+  shellstream --restart                      # Restart the server  
+  shellstream --logs                        # View server logs
 
 EXAMPLES  
   shellstream bash                          # Stream a bash shell
@@ -505,6 +641,10 @@ WEB INTERFACE
   
 Visit the web interface to view your terminal sessions from any device.
 Multiple sessions are grouped by directory with tabbed interface.
+
+ENVIRONMENT VARIABLES
+  SHELLSTREAM_PORT      Port for web server (default: 47832)
+  SHELLSTREAM_SERVER    WebSocket server URL (default: ws://localhost:47832)
     `);
     process.exit(0);
   }
