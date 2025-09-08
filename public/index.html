@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Shellstream - Terminal Streaming</title>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/css/xterm.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
     <style>
         * {
@@ -19,6 +19,7 @@
             color: #e0e0e0;
             height: 100vh;
             overflow: hidden;
+            position: relative; /* Ensure body is positioning context */
         }
         
         .container {
@@ -282,9 +283,14 @@
         
         .content-tabs {
             background: #252525;
-            border-bottom: 1px solid #333;
+            border-bottom: 2px solid #4caf50; /* Make border more visible for debugging */
             display: flex;
             overflow-x: auto;
+            min-height: 50px; /* Increase min height */
+            flex-shrink: 0;
+            position: relative;
+            z-index: 10;
+            padding: 5px;
         }
         
         .content-tab {
@@ -324,7 +330,7 @@
             flex: 1;
             display: flex;
             flex-direction: column;
-            min-width: 400px;
+            min-width: 0;
         }
         
         .session-header {
@@ -449,7 +455,8 @@
         
         /* Touch-scrollable wrapper for terminal */
         .terminal-scroll-wrapper {
-            overflow: auto;
+            overflow-x: auto;
+            overflow-y: auto;
             -webkit-overflow-scrolling: touch;
             width: 100%;
             height: 100%;
@@ -775,7 +782,8 @@
             .terminal-container {
                 padding: 10px;
                 padding-bottom: 100px; /* Add comfortable space at bottom for mobile */
-                overflow: auto !important;
+                overflow-y: auto !important;
+                overflow-x: auto !important;
                 -webkit-overflow-scrolling: touch; /* Smooth scrolling on iOS */
                 overscroll-behavior: contain; /* Prevent scroll chaining */
                 background: #2a2a2a; /* Keep gray background on mobile */
@@ -789,14 +797,12 @@
             
             /* Allow xterm to maintain its natural width on mobile */
             .xterm {
-                min-width: 100%;
                 margin: 0 !important; /* Remove margin on mobile for better space usage */
             }
             
-            /* Override to ensure full width on mobile */
+            /* Override to ensure natural width on mobile */
             .xterm-screen {
                 width: max-content !important;
-                min-width: 100%;
             }
             
             .xterm-viewport {
@@ -826,13 +832,7 @@
                 min-height: 0; /* Important for flex overflow */
             }
             
-            .content-tabs {
-                padding: 0 10px;
-                min-height: 40px;
-                overflow-x: auto;
-                display: flex;
-                gap: 5px;
-            }
+            /* content-tabs styles already defined above, removing duplicate */
             
             .content-tab {
                 padding: 8px 12px;
@@ -931,6 +931,225 @@
             transition: opacity 0.2s ease;
         }
         
+        /* Mobile scroll handle */
+        .mobile-scroll-handle {
+            display: none;
+            position: fixed !important;
+            right: 20px;
+            bottom: 160px; /* Position above keyboard when shown */
+            width: 50px;
+            height: 50px;
+            background: rgba(76, 175, 80, 0.8);
+            border: 2px solid #4caf50;
+            border-radius: 50%;
+            z-index: 10000;
+            touch-action: none;
+            cursor: grab;
+            transition: opacity 0.3s;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        }
+        
+        .mobile-scroll-handle:active {
+            cursor: grabbing;
+            transform: scale(1.2);
+            background: rgba(76, 175, 80, 1);
+        }
+        
+        .mobile-scroll-handle::before {
+            content: '↕';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: white;
+            font-size: 24px;
+            font-weight: bold;
+        }
+        
+        /* Mobile keyboard toolbar */
+        .mobile-keyboard {
+            display: none !important; /* Force hide by default */
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: rgba(26, 26, 26, 0.95);
+            border-top: 1px solid #444;
+            padding: 8px;
+            z-index: 10000;
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+        }
+        
+        .keyboard-row {
+            display: flex;
+            gap: 6px;
+            justify-content: center;
+            margin-bottom: 6px;
+        }
+        
+        .keyboard-row:last-child {
+            margin-bottom: 0;
+        }
+        
+        .key-btn {
+            background: #2a2a2a;
+            border: 1px solid #444;
+            color: #e0e0e0;
+            padding: 10px 12px;
+            border-radius: 6px;
+            font-size: 13px;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            cursor: pointer;
+            transition: all 0.1s;
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
+            min-width: 44px;
+            min-height: 44px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 500;
+        }
+        
+        .key-btn:active {
+            background: #444;
+            transform: scale(0.95);
+        }
+        
+        .key-btn.wide {
+            min-width: 60px;
+            flex: 1;
+        }
+        
+        .key-btn.extra-wide {
+            min-width: 80px;
+            flex: 1.5;
+        }
+        
+        .key-btn.arrow {
+            font-size: 18px;
+        }
+        
+        .key-btn.special {
+            background: #1a3a1a;
+            border-color: #2a5a2a;
+            color: #4caf50;
+        }
+        
+        .key-btn.special:active {
+            background: #2a5a2a;
+        }
+        
+        .key-btn.danger {
+            background: #3a1a1a;
+            border-color: #5a2a2a;
+            color: #f44336;
+        }
+        
+        .key-btn.danger:active {
+            background: #5a2a2a;
+        }
+        
+        /* Keyboard toggle button - ALWAYS visible for testing */
+        .keyboard-toggle {
+            display: flex !important; /* Force visible for debugging */
+            align-items: center;
+            justify-content: center;
+            position: fixed;
+            bottom: 150px;
+            right: 70px; /* Simple positioning */
+            width: 48px;
+            height: 48px;
+            background: #4caf50; /* Green to make it obvious */
+            border: 2px solid #66bb6a;
+            border-radius: 50%;
+            color: #fff;
+            font-size: 20px;
+            z-index: 99999; /* Very high z-index */
+            cursor: pointer;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+        }
+        
+        .keyboard-toggle:active {
+            background: #388e3c;
+            transform: scale(0.95);
+        }
+        
+        /* Mobile keyboard - simplified visibility */
+        .mobile-keyboard.show {
+            display: block !important;
+        }
+        
+        /* Adjust terminal container when keyboard visible */
+        .terminal-container.keyboard-visible {
+            padding-bottom: 140px !important;
+        }
+        
+        .mobile-scroll-track {
+            display: none;
+        }
+        
+        .mobile-scroll-indicator {
+            display: none;
+        }
+        
+        @media (max-width: 768px) {
+            .terminal-container {
+                position: relative;
+            }
+            
+            .mobile-scroll-handle {
+                display: block !important;
+            }
+            
+            /* Hide when scrolling is happening */
+            .mobile-scroll-handle.scrolling {
+                opacity: 0.3;
+            }
+        }
+        
+        /* Landscape mode on mobile - hide sidebar for full terminal view */
+        @media (max-width: 768px) and (orientation: landscape) {
+            .sidebar {
+                display: none !important;
+            }
+            
+            .main-content {
+                width: 100% !important;
+                margin-left: 0 !important;
+            }
+            
+            .menu-toggle {
+                display: none !important;
+            }
+            
+            /* Make terminal take full height in landscape */
+            .terminal-container {
+                height: 100vh !important;
+                max-height: 100vh !important;
+            }
+            
+            /* Hide header elements to maximize space */
+            .session-header {
+                display: none !important;
+            }
+            
+            .terminal-panel {
+                height: 100vh !important;
+            }
+            
+            /* Adjust scroll button for landscape */
+            .mobile-scroll-handle,
+            #mobileScrollBtn {
+                right: 5px !important;
+                width: 40px !important;
+                height: 60px !important;
+                font-size: 20px !important;
+                opacity: 0.7 !important;
+            }
+        }
+        
     </style>
 </head>
 <body>
@@ -942,6 +1161,12 @@
             <div class="connection-status">
                 <span class="status-indicator" id="connectionIndicator"></span>
                 <span id="connectionText">Connecting...</span>
+            </div>
+            <div style="margin-top: 10px; padding: 8px; background: #1a1a1a; border-radius: 6px; border: 1px solid #333;">
+                <div style="font-size: 11px; color: #666; margin-bottom: 4px;">Version</div>
+                <div style="font-size: 14px; color: #4caf50; font-weight: bold;">v1.2.0</div>
+                <div style="font-size: 10px; color: #888; margin-top: 4px;">Updated: <span id="updateTime"></span></div>
+                <div style="font-size: 10px; color: #666; margin-top: 2px;">Viewport: <span id="viewportInfo" style="color: #888;"></span></div>
             </div>
         </div>
         <div class="sessions-list" id="sessionsList">
@@ -1006,9 +1231,10 @@
         </div>
     </div>
     
-    <script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/xterm-addon-web-links@0.9.0/lib/xterm-addon-web-links.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/lib/xterm.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@xterm/addon-fit@0.10.0/lib/addon-fit.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@xterm/addon-web-links@0.11.0/lib/addon-web-links.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@xterm/addon-webgl@0.18.0/lib/addon-webgl.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-javascript.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-typescript.min.js"></script>
@@ -1024,9 +1250,38 @@
         let fileTree = null;
         let selectedFile = null;
         let currentTerminal = null;
-        let fitAddon = null;
         let gitRefreshInterval = null;
         let currentGitDiffFile = null;
+        let reconnectAttempts = 0;
+        let maxReconnectAttempts = 50;
+        let reconnectTimeout = null;
+        let wasConnected = false;
+        
+        // Better mobile detection
+        function isMobileDevice() {
+            // Check multiple conditions for better mobile detection
+            const userAgent = navigator.userAgent || navigator.vendor || window.opera;
+            
+            // Check if it's a mobile user agent
+            const isMobileUA = /android|webos|iphone|ipad|ipod|blackberry|iemobile|opera mini/i.test(userAgent.toLowerCase());
+            
+            // Check for touch capability
+            const hasTouch = ('ontouchstart' in window) || 
+                           (navigator.maxTouchPoints > 0) || 
+                           (navigator.msMaxTouchPoints > 0);
+            
+            // Check viewport width
+            const isSmallScreen = window.innerWidth <= 768;
+            
+            // Check if CSS media query matches
+            const mediaQueryMatches = window.matchMedia('(max-width: 768px)').matches;
+            
+            // Check for mobile-specific features
+            const hasMobileFeatures = 'orientation' in window && 'ondeviceorientation' in window;
+            
+            // Return true if any strong indicator of mobile, or combination of weak indicators
+            return isMobileUA || (hasTouch && (isSmallScreen || mediaQueryMatches)) || (hasTouch && hasMobileFeatures);
+        }
         
         // Helper function to escape HTML
         function escapeHtml(text) {
@@ -1047,20 +1302,43 @@
         
         // Close sidebar when selecting a directory on mobile
         function closeSidebarOnMobile() {
-            if (window.innerWidth <= 768) {
+            if (isMobileDevice()) {
                 sidebar.classList.remove('open');
             }
         }
         
         function connectWebSocket() {
+            // Clear any existing reconnect timeout
+            if (reconnectTimeout) {
+                clearTimeout(reconnectTimeout);
+                reconnectTimeout = null;
+            }
+            
+            // Don't create multiple connections
+            if (ws && (ws.readyState === WebSocket.CONNECTING || ws.readyState === WebSocket.OPEN)) {
+                return;
+            }
+            
             const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
             const wsUrl = `${protocol}//${window.location.host}/web`;
             
+            console.log('Attempting to connect to WebSocket...');
             ws = new WebSocket(wsUrl);
             
             ws.onopen = () => {
                 console.log('Connected to server');
+                reconnectAttempts = 0;
+                wasConnected = true;
                 updateConnectionStatus(true);
+                
+                // Re-subscribe to current session if we had one
+                if (currentSessionId) {
+                    console.log('Re-subscribing to session:', currentSessionId);
+                    ws.send(JSON.stringify({
+                        type: 'subscribe',
+                        sessionId: currentSessionId
+                    }));
+                }
             };
             
             ws.onmessage = (event) => {
@@ -1069,15 +1347,79 @@
             };
             
             ws.onclose = () => {
-                console.log('Disconnected from server');
+                console.log('WebSocket closed');
                 updateConnectionStatus(false);
-                setTimeout(connectWebSocket, 3000);
+                ws = null;
+                scheduleReconnect();
             };
             
             ws.onerror = (error) => {
                 console.error('WebSocket error:', error);
+                // The onclose event will handle reconnection
             };
         }
+        
+        function scheduleReconnect() {
+            if (reconnectAttempts >= maxReconnectAttempts) {
+                console.log('Max reconnection attempts reached');
+                return;
+            }
+            
+            reconnectAttempts++;
+            const delay = Math.min(1000 * Math.pow(1.5, reconnectAttempts - 1), 30000);
+            console.log(`Scheduling reconnect attempt ${reconnectAttempts} in ${delay}ms`);
+            
+            reconnectTimeout = setTimeout(() => {
+                connectWebSocket();
+            }, delay);
+        }
+        
+        // Handle page visibility changes (for mobile browsers)
+        document.addEventListener('visibilitychange', () => {
+            if (!document.hidden) {
+                console.log('Page became visible, checking WebSocket connection');
+                if (!ws || ws.readyState !== WebSocket.OPEN) {
+                    connectWebSocket();
+                }
+            }
+        });
+        
+        // Also handle online/offline events
+        window.addEventListener('online', () => {
+            console.log('Network came online, reconnecting...');
+            connectWebSocket();
+        });
+        
+        window.addEventListener('offline', () => {
+            console.log('Network went offline');
+        });
+        
+        // Handle orientation changes
+        window.addEventListener('orientationchange', () => {
+            const isLandscape = window.matchMedia("(orientation: landscape)").matches;
+            const scrollBtn = document.getElementById('mobileScrollBtn');
+            
+            if (scrollBtn) {
+                if (isLandscape && window.innerWidth <= 768) {
+                    // Make button smaller in landscape
+                    scrollBtn.style.width = '40px';
+                    scrollBtn.style.height = '60px';
+                    scrollBtn.style.fontSize = '20px';
+                    scrollBtn.style.opacity = '0.7';
+                    scrollBtn.style.bottom = '100px';
+                    scrollBtn.style.right = '10px';
+                } else {
+                    // Restore normal size in portrait
+                    scrollBtn.style.width = '48px';
+                    scrollBtn.style.height = '80px';
+                    scrollBtn.style.fontSize = '24px';
+                    scrollBtn.style.opacity = '0.9';
+                    scrollBtn.style.bottom = '150px';
+                    scrollBtn.style.right = '10px';
+                }
+            }
+            
+        });
         
         function handleServerMessage(msg) {
             switch (msg.type) {
@@ -1163,8 +1505,6 @@
         function updateSessionsList(sessionData) {
             sessions.clear();
             sessionData.forEach(session => {
-                // Debug: log session data to see structure
-                console.log('Session data:', session);
                 sessions.set(session.id, session);
             });
             renderSessionsList();
@@ -1236,8 +1576,6 @@
                 groupedSessions.get(path).push(session);
             });
             
-            console.log('Grouped sessions:', groupedSessions);
-            
             // Check if any directories have active sessions
             let hasActiveDirectories = false;
             
@@ -1271,6 +1609,7 @@
         }
         
         function selectDirectory(directoryPath, sessionGroup) {
+            
             // Close sidebar on mobile
             closeSidebarOnMobile();
             
@@ -1307,6 +1646,15 @@
         
         function createDirectoryTabs(directoryPath, activeSessions) {
             const tabsContainer = document.getElementById('contentTabs');
+            if (!tabsContainer) {
+                console.error('contentTabs container not found!');
+                return;
+            }
+            
+            console.log('Creating directory tabs, container found:', tabsContainer);
+            console.log('Container display style:', window.getComputedStyle(tabsContainer).display);
+            console.log('Container height:', window.getComputedStyle(tabsContainer).height);
+            
             tabsContainer.innerHTML = '';
             
             // Remove existing tab contents
@@ -1322,6 +1670,7 @@
             filesTab.textContent = '📁 Files';
             filesTab.onclick = () => switchContentTab('filesTab', filesTab);
             tabsContainer.appendChild(filesTab);
+            console.log('Files tab added');
             
             // Create one tab per active session in this directory
             activeSessions.forEach(session => {
@@ -1360,6 +1709,9 @@
             
             currentSessionId = sessionId;
             
+            // Initialize the terminal for this session first
+            initializeTerminal(sessionId);
+            
             // Subscribe to this session's output
             if (ws && ws.readyState === WebSocket.OPEN) {
                 console.log('Subscribing to session:', sessionId);
@@ -1375,6 +1727,24 @@
                 currentTerminal = terminal;
                 console.log('Set current terminal for session:', sessionId);
             }
+            
+            // Show mobile keyboard for this session on mobile devices
+            if (isMobileDevice()) {
+                // Hide all keyboards first
+                document.querySelectorAll('.mobile-keyboard').forEach(keyboard => {
+                    keyboard.classList.remove('show');
+                });
+                
+                // Show keyboard for this session
+                const keyboard = document.getElementById(`mobileKeyboard-${sessionId}`);
+                const container = document.getElementById(`terminalContainer-${sessionId}`);
+                if (keyboard) {
+                    keyboard.classList.add('show');
+                    if (container) {
+                        container.classList.add('keyboard-visible');
+                    }
+                }
+            }
         }
         
         
@@ -1389,6 +1759,7 @@
             const terminalTabContent = document.createElement('div');
             terminalTabContent.className = 'tab-content';
             terminalTabContent.id = 'terminal-' + session.id;
+            terminalTabContent.style.position = 'relative'; // Ensure relative positioning
             terminalTabContent.innerHTML = `
                 <div class="session-header" style="padding: 15px 20px; border-bottom: 1px solid #333; display: flex; justify-content: space-between; align-items: center;">
                     <div class="session-title">
@@ -1401,12 +1772,38 @@
                     </div>
                 </div>
                 
-                <div class="terminal-container" style="flex: 1; min-height: 0; overflow: hidden;">
+                <div class="terminal-container" id="terminalContainer-${session.id}" style="flex: 1; min-height: 0; position: relative;">
                     <div class="terminal-size-indicator" id="size-${session.id}">
                         ${session.cols || 80}×${session.rows || 24}
                     </div>
                     <div class="terminal-scroll-wrapper">
-                        <div id="terminal-${session.id}" style="width: max-content; min-width: 100%;"></div>
+                        <div id="terminal-${session.id}" style="width: max-content;"></div>
+                    </div>
+                    <!-- Mobile vertical scroll controls -->
+                    <div class="mobile-scroll-track" id="scrollTrack-${session.id}">
+                        <div class="mobile-scroll-indicator" id="scrollIndicator-${session.id}"></div>
+                    </div>
+                    <div class="mobile-scroll-handle" id="scrollHandle-${session.id}"></div>
+                </div>
+                
+                <!-- Keyboard toggle button -->
+                <button class="keyboard-toggle" id="keyboardToggle-${session.id}" onclick="toggleMobileKeyboard('${session.id}')">⌨</button>
+                
+                <!-- Mobile keyboard toolbar -->
+                <div class="mobile-keyboard" id="mobileKeyboard-${session.id}">
+                    <div class="keyboard-row">
+                        <button class="key-btn" onclick="sendKey('esc')">ESC</button>
+                        <button class="key-btn wide special" onclick="sendKey('tab')">Tab</button>
+                        <button class="key-btn arrow" onclick="sendKey('up')">↑</button>
+                        <button class="key-btn arrow" onclick="sendKey('down')">↓</button>
+                        <button class="key-btn arrow" onclick="sendKey('left')">←</button>
+                        <button class="key-btn arrow" onclick="sendKey('right')">→</button>
+                    </div>
+                    <div class="keyboard-row">
+                        <button class="key-btn danger" onclick="sendKey('ctrl-c')">Ctrl+C</button>
+                        <button class="key-btn" onclick="sendKey('ctrl-d')">Ctrl+D</button>
+                        <button class="key-btn" onclick="sendKey('ctrl-z')">Ctrl+Z</button>
+                        <button class="key-btn special" onclick="sendKey('enter')">Enter</button>
                     </div>
                 </div>
             `;
@@ -1415,6 +1812,213 @@
             
             // Initialize terminal for this session
             initializeTerminal(session.id);
+            
+            // Add simple mobile scroll button immediately
+            if (isMobileDevice()) {
+                setTimeout(() => {
+                    // Remove any existing scroll button
+                    const existing = document.getElementById('mobileScrollBtn');
+                    if (existing) existing.remove();
+                    
+                    // Create simple scroll button
+                    const scrollBtn = document.createElement('div');
+                    scrollBtn.id = 'mobileScrollBtn';
+                    // Simple positioning approach
+                    scrollBtn.style.position = 'fixed';
+                    scrollBtn.style.bottom = '150px';
+                    scrollBtn.style.right = '10px';
+                    scrollBtn.style.width = '48px';
+                    scrollBtn.style.height = '80px';
+                    scrollBtn.style.backgroundColor = '#4caf50';
+                    scrollBtn.style.borderRadius = '24px';
+                    scrollBtn.style.display = 'flex';
+                    scrollBtn.style.alignItems = 'center';
+                    scrollBtn.style.justifyContent = 'center';
+                    scrollBtn.style.color = 'white';
+                    scrollBtn.style.fontSize = '24px';
+                    scrollBtn.style.zIndex = '999999';
+                    scrollBtn.style.boxShadow = '0 2px 8px rgba(0,0,0,0.4)';
+                    scrollBtn.style.cursor = 'pointer';
+                    scrollBtn.style.webkitTapHighlightColor = 'transparent';
+                    scrollBtn.style.opacity = '0.9';
+                    scrollBtn.innerHTML = '⇕';
+                    document.body.appendChild(scrollBtn);
+                    
+                    // Make it draggable for scrolling
+                    let startY = 0;
+                    let isDragging = false;
+                    let lastTime = Date.now();
+                    
+                    scrollBtn.addEventListener('touchstart', (e) => {
+                        isDragging = true;
+                        startY = e.touches[0].clientY;
+                        lastTime = Date.now();
+                        scrollBtn.style.transform = 'translateY(-50%) scale(1.1)';
+                        scrollBtn.style.backgroundColor = '#45a049';
+                        scrollBtn.style.opacity = '1';
+                        e.preventDefault();
+                        e.stopPropagation();
+                    }, { passive: false });
+                    
+                    scrollBtn.addEventListener('touchmove', (e) => {
+                        if (!isDragging) return;
+                        
+                        const currentY = e.touches[0].clientY;
+                        const deltaY = startY - currentY;
+                        
+                        // Use xterm API if available
+                        if (currentTerminal && currentTerminal.buffer && currentTerminal.buffer.active) {
+                            // Scroll using xterm's scroll API - more sensitive
+                            const linesToScroll = Math.round(deltaY / 5); // More sensitive
+                            if (linesToScroll !== 0) {
+                                currentTerminal.scrollLines(linesToScroll);
+                            }
+                        } else {
+                            // Fallback to direct viewport scrolling
+                            const xtermViewport = document.querySelector('.xterm-viewport');
+                            if (xtermViewport) {
+                                xtermViewport.scrollTop += deltaY * 2;
+                            } else {
+                                // Last fallback to terminal-container
+                                const terminalContainer = document.querySelector('.terminal-container');
+                                if (terminalContainer) {
+                                    terminalContainer.scrollTop += deltaY * 2;
+                                }
+                            }
+                        }
+                        
+                        startY = currentY;
+                        e.preventDefault();
+                        e.stopPropagation();
+                    }, { passive: false });
+                    
+                    scrollBtn.addEventListener('touchend', (e) => {
+                        isDragging = false;
+                        scrollBtn.style.transform = 'translateY(-50%) scale(1)';
+                        scrollBtn.style.backgroundColor = '#4caf50';
+                        scrollBtn.style.opacity = '0.9';
+                        e.preventDefault();
+                        e.stopPropagation();
+                    }, { passive: false });
+                    
+                    console.log('Mobile scroll button added');
+                }, 100);
+            }
+        }
+        
+        function setupMobileScrollHandle(sessionId) {
+            const handle = document.getElementById(`scrollHandle-${sessionId}`);
+            const container = document.getElementById(`terminalContainer-${sessionId}`);
+            const indicator = document.getElementById(`scrollIndicator-${sessionId}`);
+            const track = document.getElementById(`scrollTrack-${sessionId}`);
+            
+            if (!handle || !container) return;
+            
+            let isDragging = false;
+            let startY = 0;
+            let startScrollTop = 0;
+            let scrollRatio = 0;
+            
+            // Get the actual scrollable element (terminal-container on mobile)
+            const getScrollElement = () => {
+                // On mobile, terminal-container itself is scrollable
+                return container;
+            };
+            
+            // Update indicator position based on scroll
+            const updateIndicator = () => {
+                const scrollEl = getScrollElement();
+                const scrollHeight = scrollEl.scrollHeight;
+                const clientHeight = scrollEl.clientHeight;
+                const scrollTop = scrollEl.scrollTop;
+                
+                if (scrollHeight > clientHeight) {
+                    const maxScroll = scrollHeight - clientHeight;
+                    const scrollPercent = scrollTop / maxScroll;
+                    const trackHeight = track.clientHeight - indicator.clientHeight;
+                    indicator.style.top = (scrollPercent * trackHeight) + 'px';
+                }
+            };
+            
+            // Touch start
+            handle.addEventListener('touchstart', (e) => {
+                const scrollEl = getScrollElement();
+                
+                isDragging = true;
+                startY = e.touches[0].clientY;
+                startScrollTop = scrollEl.scrollTop;
+                handle.classList.add('scrolling');
+                
+                // Calculate scroll ratio
+                const scrollHeight = scrollEl.scrollHeight;
+                const clientHeight = scrollEl.clientHeight;
+                scrollRatio = (scrollHeight - clientHeight) / clientHeight;
+                
+                e.preventDefault();
+            });
+            
+            // Touch move
+            handle.addEventListener('touchmove', (e) => {
+                if (!isDragging) return;
+                
+                const scrollEl = getScrollElement();
+                const deltaY = e.touches[0].clientY - startY;
+                const scrollDelta = deltaY * scrollRatio * 2; // Multiply for faster scrolling
+                
+                scrollEl.scrollTop = startScrollTop + scrollDelta;
+                updateIndicator();
+                
+                e.preventDefault();
+            });
+            
+            // Touch end
+            handle.addEventListener('touchend', () => {
+                isDragging = false;
+                handle.classList.remove('scrolling');
+            });
+            
+            // Mouse events for testing on desktop
+            handle.addEventListener('mousedown', (e) => {
+                const scrollEl = getScrollElement();
+                
+                isDragging = true;
+                startY = e.clientY;
+                startScrollTop = scrollEl.scrollTop;
+                handle.classList.add('scrolling');
+                
+                const scrollHeight = scrollEl.scrollHeight;
+                const clientHeight = scrollEl.clientHeight;
+                scrollRatio = (scrollHeight - clientHeight) / clientHeight;
+                
+                e.preventDefault();
+            });
+            
+            document.addEventListener('mousemove', (e) => {
+                if (!isDragging) return;
+                
+                const scrollEl = getScrollElement();
+                const deltaY = e.clientY - startY;
+                const scrollDelta = deltaY * scrollRatio * 2;
+                
+                scrollEl.scrollTop = startScrollTop + scrollDelta;
+                updateIndicator();
+                
+                e.preventDefault();
+            });
+            
+            document.addEventListener('mouseup', () => {
+                if (isDragging) {
+                    isDragging = false;
+                    handle.classList.remove('scrolling');
+                }
+            });
+            
+            // Update indicator on regular scroll
+            const scrollEl = getScrollElement();
+            scrollEl.addEventListener('scroll', updateIndicator);
+            
+            // Initial indicator update
+            setTimeout(updateIndicator, 100);
         }
         
         function switchContentTab(tabId, tabElement) {
@@ -1430,6 +2034,14 @@
                 content.style.display = 'none';
             });
             
+            // Hide all mobile keyboards and remove padding
+            document.querySelectorAll('.mobile-keyboard').forEach(keyboard => {
+                keyboard.classList.remove('show');
+            });
+            document.querySelectorAll('.terminal-container').forEach(container => {
+                container.classList.remove('keyboard-visible');
+            });
+            
             // Show the selected tab
             const selectedTab = document.getElementById(tabId);
             if (selectedTab) {
@@ -1437,12 +2049,24 @@
                 selectedTab.style.display = 'flex';
             }
             
-            // If switching to terminal tab, set current terminal
+            // If switching to terminal tab, set current terminal and show mobile keyboard
             if (tabId.startsWith('terminal-') && currentSessionId) {
                 const sessionId = tabId.replace('terminal-', '');
                 const terminal = terminals.get(sessionId);
                 if (terminal) {
                     currentTerminal = terminal;
+                }
+                
+                // Show mobile keyboard for this terminal on mobile devices
+                if (isMobileDevice()) {
+                    const keyboard = document.getElementById(`mobileKeyboard-${sessionId}`);
+                    const container = document.getElementById(`terminalContainer-${sessionId}`);
+                    if (keyboard) {
+                        keyboard.classList.add('show');
+                        if (container) {
+                            container.classList.add('keyboard-visible');
+                        }
+                    }
                 }
             }
             
@@ -1555,6 +2179,19 @@
             
             term.open(terminalContainer);
             
+            // Try to use WebGL renderer for better performance
+            try {
+                const webglAddon = new WebglAddon.WebglAddon();
+                webglAddon.onContextLoss(() => {
+                    console.warn('WebGL context lost, falling back to canvas renderer');
+                    webglAddon.dispose();
+                });
+                term.loadAddon(webglAddon);
+                console.log('WebGL renderer enabled for session:', sessionId);
+            } catch (e) {
+                console.log('WebGL renderer not available, using canvas renderer:', e.message);
+            }
+            
             // Setup scrolling - let's use the xterm viewport itself
             setTimeout(() => {
                 const viewport = terminalContainer.querySelector('.xterm-viewport');
@@ -1588,7 +2225,7 @@
             
             // Add composition event listeners to the terminal element
             const termElement = terminalContainer.querySelector('.xterm');
-            if (termElement && window.innerWidth <= 768) {
+            if (termElement && isMobileDevice()) {
                 termElement.addEventListener('compositionstart', () => {
                     isComposing = true;
                     console.log('Composition started');
@@ -1613,7 +2250,7 @@
                     const now = Date.now();
                     
                     // Special handling for Firefox mobile
-                    if (isFirefoxMobile && window.innerWidth <= 768) {
+                    if (isFirefoxMobile && isMobileDevice()) {
                         console.log('Firefox mobile input:', JSON.stringify(data), 'Code:', data.charCodeAt(0));
                         
                         // Track recent inputs
@@ -1676,17 +2313,27 @@
         
         
         function loadHistory(history) {
-            if (!currentTerminal) return;
+            if (!currentTerminal) {
+                console.log('No terminal available to load history');
+                return;
+            }
+            
+            console.log(`Loading ${history.length} history entries`);
             
             // Clear terminal first
             currentTerminal.clear();
             
             // Write history
             history.forEach(entry => {
-                if (entry.type === 'output' && entry.data) {
+                // Handle both formats: direct data or typed entries
+                if (entry.data) {
+                    currentTerminal.write(entry.data);
+                } else if (entry.type === 'output' && entry.data) {
                     currentTerminal.write(entry.data);
                 }
             });
+            
+            console.log('History loaded successfully');
         }
         
         function updateTerminalSize(cols, rows) {
@@ -1768,7 +2415,7 @@
                     document.getElementById('fileViewerTitle').textContent = filename;
                     
                     // On mobile, show viewer and hide tree
-                    if (window.innerWidth <= 768) {
+                    if (isMobileDevice()) {
                         document.getElementById('fileTreeContainer').classList.add('hidden');
                         document.getElementById('fileViewerContainer').classList.add('active');
                     }
@@ -1996,6 +2643,82 @@
             }
         }
         
+        function toggleMobileKeyboard(sessionId) {
+            const keyboard = document.getElementById(`mobileKeyboard-${sessionId}`);
+            const container = document.getElementById(`terminalContainer-${sessionId}`);
+            
+            if (keyboard) {
+                keyboard.classList.toggle('show');
+                
+                // Add/remove padding from terminal container
+                if (container) {
+                    container.classList.toggle('keyboard-visible');
+                }
+            }
+        }
+        
+        function sendKey(key) {
+            if (!currentSessionId) return;
+            
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                let data = '';
+                
+                switch(key) {
+                    case 'esc':
+                        data = '\x1b';  // ESC character
+                        break;
+                    case 'tab':
+                        data = '\t';     // Tab character
+                        break;
+                    case 'enter':
+                        data = '\r';     // Carriage return
+                        break;
+                    case 'up':
+                        data = '\x1b[A'; // Arrow up
+                        break;
+                    case 'down':
+                        data = '\x1b[B'; // Arrow down
+                        break;
+                    case 'right':
+                        data = '\x1b[C'; // Arrow right
+                        break;
+                    case 'left':
+                        data = '\x1b[D'; // Arrow left
+                        break;
+                    case 'ctrl-c':
+                        data = '\x03';   // Ctrl+C
+                        break;
+                    case 'ctrl-d':
+                        data = '\x04';   // Ctrl+D (EOF)
+                        break;
+                    case 'ctrl-z':
+                        data = '\x1a';   // Ctrl+Z (suspend)
+                        break;
+                    default:
+                        console.error('Unknown key:', key);
+                        return;
+                }
+                
+                // Send as direct input like the terminal does
+                ws.send(JSON.stringify({
+                    type: 'input',
+                    sessionId: currentSessionId,
+                    data: data
+                }));
+                
+                // Visual feedback in terminal for some keys
+                if (currentTerminal) {
+                    if (key === 'ctrl-c') {
+                        currentTerminal.write('\x1b[31m^C\x1b[0m');
+                    } else if (key === 'ctrl-d') {
+                        currentTerminal.write('\x1b[33m^D\x1b[0m');
+                    } else if (key === 'ctrl-z') {
+                        currentTerminal.write('\x1b[33m^Z\x1b[0m');
+                    }
+                }
+            }
+        }
+        
         function sendInterrupt() {
             sendCommand('interrupt');
             if (currentTerminal) {
@@ -2037,7 +2760,7 @@
         
         function showFileTree() {
             // Mobile only - go back to file tree view
-            if (window.innerWidth <= 768) {
+            if (isMobileDevice()) {
                 document.getElementById('fileTreeContainer').classList.remove('hidden');
                 document.getElementById('fileViewerContainer').classList.remove('active');
                 document.getElementById('fileViewerTitle').textContent = 'Select a file to view';
@@ -2063,8 +2786,55 @@
             document.getElementById('sidebar').classList.toggle('open');
         }
         
+        
         // Initialize
         connectWebSocket();
+        
+        // Show update time and viewport info
+        const now = new Date();
+        document.getElementById('updateTime').textContent = now.toLocaleTimeString();
+        
+        // Show viewport info for debugging
+        function updateViewportInfo() {
+            const vw = window.innerWidth || document.documentElement.clientWidth;
+            const vh = window.innerHeight || document.documentElement.clientHeight;
+            const info = `${vw}×${vh}px`;
+            const viewportEl = document.getElementById('viewportInfo');
+            if (viewportEl) viewportEl.textContent = info;
+        }
+        updateViewportInfo();
+        window.addEventListener('resize', updateViewportInfo);
+        
+        // Handle mobile pinch zoom
+        if ('visualViewport' in window) {
+            function handleVisualViewportChange() {
+                const scale = window.visualViewport.scale;
+                const visualWidth = window.visualViewport.width;
+                
+                // When zoomed out (scale < 1), adjust container widths
+                if (scale < 1) {
+                    // Update terminal containers to match visual viewport
+                    document.querySelectorAll('.terminal-container').forEach(container => {
+                        container.style.maxWidth = visualWidth + 'px';
+                    });
+                    document.querySelectorAll('.terminal-scroll-wrapper').forEach(wrapper => {
+                        wrapper.style.maxWidth = visualWidth + 'px';
+                    });
+                } else {
+                    // Reset when not zoomed
+                    document.querySelectorAll('.terminal-container').forEach(container => {
+                        container.style.maxWidth = '';
+                    });
+                    document.querySelectorAll('.terminal-scroll-wrapper').forEach(wrapper => {
+                        wrapper.style.maxWidth = '';
+                    });
+                }
+            }
+            
+            window.visualViewport.addEventListener('resize', handleVisualViewportChange);
+            window.visualViewport.addEventListener('scroll', handleVisualViewportChange);
+        }
+        
         
         // Request notification permission
         if ('Notification' in window && Notification.permission === 'default') {

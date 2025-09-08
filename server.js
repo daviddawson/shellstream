@@ -13,7 +13,12 @@ class ShellstreamServer {
     this.port = port;
     this.app = express();
     this.server = http.createServer(this.app);
-    this.wss = new WebSocketServer({ server: this.server });
+    
+    // Use simplest compression config - just enable it and let ws handle negotiation
+    this.wss = new WebSocketServer({ 
+      server: this.server,
+      perMessageDeflate: true  // Enable with all defaults
+    });
     
     // Session management
     this.sessions = new Map();
@@ -32,6 +37,14 @@ class ShellstreamServer {
   }
 
   setupExpress() {
+    // Add CORS headers for Firefox compatibility
+    this.app.use((req, res, next) => {
+      res.header('Access-Control-Allow-Origin', '*');
+      res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+      res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept');
+      next();
+    });
+    
     // Serve static files from the module's public directory
     const publicPath = path.join(__dirname, 'public');
     this.app.use(express.static(publicPath));
@@ -104,7 +117,14 @@ class ShellstreamServer {
   setupWebSocket() {
     this.wss.on('connection', (ws, req) => {
       const clientId = uuidv4();
+      
+      // Log compression negotiation status
+      const userAgent = req.headers['user-agent'] || 'Unknown';
+      const isFirefox = userAgent.includes('Firefox');
+      const compressionEnabled = ws.extensions && ws.extensions['permessage-deflate'];
+      
       console.log(`[Server] New connection: ${clientId}`);
+      console.log(`[Server] Browser: ${isFirefox ? 'Firefox' : 'Other'}, Compression: ${compressionEnabled ? 'ENABLED' : 'DISABLED'}`);
       
       // Determine client type from URL or headers
       const isWebClient = req.url === '/web' || req.headers['x-client-type'] === 'web';
@@ -572,10 +592,12 @@ class ShellstreamServer {
   }
 
   start() {
-    this.server.listen(this.port, () => {
+    // Explicitly bind to all IPv4 interfaces (0.0.0.0) to avoid IPv6-only binding
+    this.server.listen(this.port, '0.0.0.0', () => {
       console.log(`[Server] Shellstream Server running on http://localhost:${this.port}`);
       console.log(`[Server] WebSocket endpoint: ws://localhost:${this.port}`);
       console.log(`[Server] Web UI: http://localhost:${this.port}`);
+      console.log(`[Server] Also accessible at: http://127.0.0.1:${this.port}`);
     });
     
     // Periodic health check for sessions

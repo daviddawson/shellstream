@@ -226,7 +226,10 @@ class Shellstream {
     return new Promise((resolve) => {
       console.error(`[Monitor] Connecting to server: ${this.serverUrl}`);
       
-      this.ws = new WebSocket(this.serverUrl);
+      // Simple compression config - let server negotiate details
+      this.ws = new WebSocket(this.serverUrl, {
+        perMessageDeflate: true  // Enable compression with defaults
+      });
       
       this.ws.on('open', () => {
         console.error('[Monitor] Connected to central server');
